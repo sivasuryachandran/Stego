@@ -96,4 +96,6 @@ makes no head-to-head claim against the LLM; the Benchmark page shows only B and
 - The Content Credentials seal uses a test certificate and proves provenance of the file, not the correctness of the decision.
 - Not built: Adobe PDF Embed API viewer, Express template.
 
+License: MIT for the code (see `LICENSE`). The CUAD data is not included and keeps its own license.
+
 Data: CUAD, CC BY 4.0, The Atticus Project, https://www.atticusprojectai.org/cuad.
