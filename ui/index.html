@@ -372,6 +372,7 @@ pre.cmd{background:#111;color:#fff;padding:12px 14px;border-radius:8px;font:500 
 .dstats b{font-size:18px;display:block}
 .done-card{animation:pop .35s ease-out both;padding-bottom:20px}
 @media(prefers-reduced-motion:reduce){.confetti,.donest,.dino.party *,.done-card{animation:none!important}}
+#csel,.toolbar select{width:min(100%,560px);max-width:100%;text-overflow:ellipsis}
 </style>
 </head>
 <body>
@@ -413,7 +414,8 @@ async function load() {
   if (base.sample) base = { ...base, summary: base.summary.map(x => ({ arm: x.arm })), ledger: [] };  // never show invented numbers
   const st = await tryJSON("/api/state");
   if (st) { base.server = st; base.liveLedger = st.ledger; base.live = st.contracts; base.decisions = st.decisions || {};
-    base.contracts = [...st.contracts, ...base.contracts]; base.categories = base.categories || st.categories;
+    const seenT = new Set(); base.live = st.contracts.filter(c => !seenT.has(c.title) && seenT.add(c.title));   // newest upload per file name
+    base.contracts = [...base.live, ...base.contracts]; base.categories = base.categories || st.categories;
     if (base.sample) { base.theta = st.theta; base.tau = st.tau; } }
   return base;
 }
@@ -715,7 +717,7 @@ function landing() {
   <div class="rig"><div class="bar"><span>DREX_RIG_VIEW</span><span>STATUS: ${D.sample ? "SAMPLE" : "LIVE RUN"}</span></div>${sceneSet("heroScene")}<div class="bar" style="border-top:2px solid var(--ink);border-bottom:0"><span>NOT A BENCHMARK RESULT</span><span>ILLUSTRATION</span></div></div></div>
   <div class="sec"><h2>Decision ledger</h2><span class="badge">from ledger.jsonl</span></div>
   <div class="grid g4">
-    ${tile("Drex decisions", dec.toLocaleString(), (dpc != null ? Math.round(dpc) + " per contract" : "per run"), "")}
+    ${tile("Drex decisions", dec.toLocaleString(), (D.liveLedger && D.liveLedger.length) ? "from uploads this session" : (dpc != null ? Math.round(dpc) + " per contract" : "per run"), "")}
     ${tile("Reasoning-LLM calls (Stego)", B.llm_calls ?? 0, "arm B: zero by design")}
     ${tile("Cost / contract (arm B)", usd(B.cost_per_contract_usd), "from token counts × price in config")}
     ${tile("p50 latency (arm B)", sec(B.latency_p50_ms), "wall-clock per contract")}
@@ -764,7 +766,7 @@ function workspace() {
     <div><div class="lab">${ct.pages ? ct.pages + " pages · " : ""}${D.categories.length} clause questions</div>
       <select id="csel" style="margin-top:6px;max-width:100%">${D.contracts.map((c, i) => `<option value="${i}" ${i === state.ci ? "selected" : ""}>${esc(c.title)}</option>`).join("")}</select></div>
     <div style="display:flex;gap:12px;flex-wrap:wrap">
-      <div class="card" style="margin:0;padding:8px 14px"><div class="lab">Drex decisions</div><div class="metric" style="font-size:24px">${nums.dec.toLocaleString()}</div></div>
+      <div class="card" style="margin:0;padding:8px 14px"><div class="lab">Drex decisions</div><div class="metric" style="font-size:24px">${ct.drex_decisions != null ? ct.drex_decisions.toLocaleString() : "–"}</div></div>
       <div class="card" style="margin:0;padding:8px 14px"><div class="lab">Reasoning-LLM calls</div><div class="metric" style="font-size:24px">0</div></div>
       <div class="card" style="margin:0;padding:8px 14px"><div class="lab">Time</div><div class="metric" style="font-size:24px">${sec(ct.ms)}</div></div>
       ${ct.live && D.server ? `<div class="card" style="margin:0;padding:8px 14px"><div class="lab">Parse cost${ct.mock ? " (mock)" : ""}</div><div class="metric" style="font-size:24px">$${((D.liveLedger || []).filter(r => r.contract === ct.title).reduce((a, r) => a + (r.input_tokens || 0), 0) / 1e6 * D.server.drex_price_per_m).toFixed(4)}</div></div>` : ""}</div></div></div>
@@ -831,7 +833,7 @@ function portfolio() {
     <h1 style="margin:12px 0 4px;font-size:44px">Portfolio clause search</h1>
     <div class="grid g4" style="margin:16px 0">${(() => { const n = D.contracts.length, tot = n * cats.length, unc = D.contracts.reduce((a, c) => a + nHum(c), 0);
       return [["Contracts", n], ["Clauses triaged", tot.toLocaleString()], ["Uploaded live", (D.live || []).length], ["Sent to human", tot ? (unc / tot * 100).toFixed(1) + "%" : "–"]].map(([l, v]) => `<div class="card" style="margin:0;padding:10px 14px"><div class="lab">${l}</div><div class="metric" style="font-size:26px">${v}</div></div>`).join(""); })()}</div>
-    <p style="margin:0 0 20px;color:var(--mut);font-weight:500">Pick clauses. Shows contracts where every picked clause is present or under review (all ${D.sample ? "sample" : "report-set"} contracts).</p>
+    <p style="margin:0 0 20px;color:var(--mut);font-weight:500">Pick clauses. Shows contracts where every picked clause is present or under review (${D.sample ? "sample contracts" : "your uploads plus the 82 benchmark report contracts"}).</p>
     <div class="card" style="margin:0"><div class="lab" style="margin-bottom:10px">Filter by (AND)</div>
       <div style="display:flex;flex-wrap:wrap;gap:8px">${cats.map(c => `<button class="chip" aria-pressed="${f.has(c)}" data-c="${esc(c)}">${esc(c)}${f.has(c) ? " ✕" : ""}</button>`).join("")}</div></div>
     <div class="found" style="display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;align-items:center"><span>Found <b style="text-decoration:underline">${hits.length}</b> matching contract${hits.length === 1 ? "" : "s"}${f.size ? " with " + [...f].map(esc).join(" AND ") : ""}.</span><button class="btn sm" id="csv">Export CSV</button></div></div>
@@ -1020,6 +1022,7 @@ function raceView() {
     ${!srv ? '<div class="banner sample">Start the app server (<b>.venv/bin/python app.py</b>) to race.</div>'
       : mock ? '<div class="banner sample">MOCK MODE: Drex answers come from keyword heuristics and the LLM answers are random after a 2 to 4 second sleep. These timings are NOT a real comparison. Set DREX_API_KEY and LLM_API_KEY, then restart app.py.</div>'
       : !srv.llm_ready ? '<div class="banner sample">LLM_API_KEY is not set, so the baseline side cannot run. Set it (and LLM_MODEL) and restart app.py.</div>' : ""}
+    ${srv && srv.llm_model ? `<div class="lab" style="text-transform:none;font-size:12px;margin-bottom:10px">LLM baseline: <b>${esc(srv.llm_model)}</b>${/qwen/i.test(srv.llm_model) ? ", a thinking model: expect one to three minutes (or a timeout on long contracts), not seconds." : ""}</div>` : ""}
     <div style="display:flex;gap:10px;flex-wrap:wrap"><button class="btn green" id="raceSample" ${srv ? "" : "disabled"}>Race the sample contract</button>
       <label class="btn" style="cursor:pointer">Race my own PDF…<input id="racePick" type="file" accept=".pdf,.txt" hidden></label></div></div>
     <div id="raceBoard" style="margin-top:24px"></div>`;
