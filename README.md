@@ -27,7 +27,7 @@ python -m venv .venv && .venv/bin/pip install -r requirements.txt      # Windows
 .venv/bin/python samples/make_sample.py        # invented demo contract -> samples/sample_vendor_agreement.pdf
 .venv/bin/python app.py                        # http://localhost:8000/
 ```
-Upload a PDF, open the clause board, review clauses, then seal the brief. Mock mode is on whenever no Drex key is set.
+Upload a PDF, open the clause board, review clauses, then seal the brief. `.venv/bin/python scripts/smoke.py` runs an offline end-to-end check (MOCK Drex, temporary folder, no keys). Mock mode is on whenever no Drex key is set.
 
 ### Run it: Drex provider (env only, no code change)
 The app header badge shows the active provider ("Drex via Nace" or "Drex via DeepInfra") next to the LIVE or MOCK badge.
@@ -45,8 +45,9 @@ Both providers serve the same `/v1/systemone` contract. `DREX_API_KEY` takes pri
 ### Environment variables (names only; put values in `.env`, which is gitignored)
 | Name | Purpose |
 |---|---|
-| `NACE_API_KEY` (or `DREX_API_KEY`) | Drex. Without it the app and harness run **MOCK** Drex (keyword heuristics) and say so in the UI. |
-| `DREX_BASE_URL`, `DREX_PATH`, `DREX_MODEL` | Optional overrides. The model is resolved from `GET /v1/models` (prefers `drex-v2.0`). |
+| `DREX_API_KEY` (or `NACE_API_KEY`) | Drex. `DREX_API_KEY` wins if both are set. Without either, the app and harness run **MOCK** Drex (keyword heuristics) and say so in the UI. |
+| `DREX_BASE_URL`, `DREX_PATH`, `DREX_MODEL` | Optional overrides. If `DREX_MODEL` is set, the app uses it as is; otherwise (and always in the benchmark harness) the model is resolved from `GET /v1/models`, preferring `drex-v2.0`. |
+| `DREX_QUESTIONS_PER_REQ`, `DREX_MAX_INFLIGHT` | Questions per request (default 20; DeepInfra needs 10) and concurrent requests (default 8). See `docs/DEPLOY_NOTES.md`. |
 | `DREX_PRICE_PER_M_INPUT` | Used for cost per contract. |
 | `LLM_PROVIDER`, `LLM_BASE_URL`, `LLM_MODEL`, `LLM_API_KEY` | The LLM baseline (arms A and C). Any OpenAI-compatible endpoint, or `anthropic`. |
 | `LLM_PRICE_PER_M_INPUT`, `LLM_PRICE_PER_M_OUTPUT`, `LLM_TEMPERATURE`, `LLM_ARM_LABEL` | Cost and labelling for the baseline. |
