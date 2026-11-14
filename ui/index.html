@@ -1185,7 +1185,7 @@ function about() {
   <div class="card studs">${studs(4)}<p style="margin:0 0 8px;font-weight:500">We sealed a brief of the invented sample contract and dropped it on contentcredentials.org/verify. Exactly what the page showed:</p>
     <ul class="tick wip"><li>Status <b>"Unrecognized"</b>, with the banner "The Content Credential issuer couldn't be recognized. This file may not come from where it claims to." Expected: the seal uses a generated test certificate that is not on Adobe's trust list.</li>
       <li>Process: App or device used <b>"Stego Fossil Record Signer (TEST)"</b>. Actions: <b>"Created: The asset was created."</b></li>
-      <li>Ingredients: <b>"Stego mascot (Adobe Firefly)"</b>, marked <b>"No Content Credential"</b>. The mascot image carries no Content Credentials of its own, so Adobe's page shows no Firefly provenance for it.</li>
+      <li>Ingredients: <b>"Stego mascot (Adobe Firefly)"</b>, shown with a Content Credential icon and its date. The mascot is the original Adobe-signed Firefly file (issuer Adobe Inc.), so its own credentials are carried in the chain. An earlier run, with a re-saved copy, showed "No Content Credential". Adobe's page still says Unrecognized for the outer seal, because ours is a TEST certificate.</li>
       <li>About this Content Credential: <b>"Issued by: Stego (TEST ONLY)"</b>.</li>
       <li>Not shown there: the decision record (model, probabilities, evidence pages, human decisions, ledger hash). Adobe's page shows standard fields only; Stego's own verifier reads the full record from the same seal.</li></ul>
     <div class="lab" style="margin-top:8px;text-transform:none">The tamper test is real. The Forger Test button is simulated (a second test signer), and says so.</div></div>
@@ -1220,7 +1220,7 @@ function about() {
       <li>Live race against a real LLM, with a cool-down so it is fair</li><li>Sealed briefs and tamper checks (test certificate)</li><li>Print-ready review brief</li></ul></div>
     <div class="card a studs">${studs(3)}<h3>Not wired yet</h3><ul class="tick wip">
       <li>Scanned PDFs: text-based PDFs only</li><li>The CUAD benchmark data is not in the repo, so Benchmark and Portfolio show sample data or dashes</li>
-      <li>Adobe PDF Embed viewer and a Firefly mascot in the seal (the hook for the mascot is ready at <code class="k">assets/mascot_firefly.png</code>)</li>
+      <li>Adobe PDF Embed viewer and a Firefly mascot in the seal (the mascot at <code class="k">assets/mascot_firefly.png</code> is already sealed in as an ingredient)</li>
       <li>A trusted signing certificate: today Adobe's verify page shows an untrusted signer</li></ul></div>
   </div>
   <div class="card r studs" style="margin-top:24px">${studs(3)}<h3>What Stego will never claim</h3><ul class="tick no">
