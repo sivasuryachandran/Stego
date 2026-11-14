@@ -741,7 +741,7 @@ function landing() {
     ${tile("p50 latency (arm B)", sec(B.latency_p50_ms), "wall-clock per contract")}
   </div>
   <div class="sec"><h2>Try it</h2><span class="badge y">drop a contract</span></div>
-  <div class="drop" id="drop">⬆ Drop a contract PDF or .txt here, or click to browse<div class="lab" style="margin-top:6px;font-weight:500">Text-based PDFs only for now · try samples/sample_vendor_agreement.pdf</div></div>
+  <div class="drop" id="drop">⬆ Drop a contract PDF or .txt here, or click to browse<div class="lab" style="margin-top:6px;font-weight:500">Text-based PDFs only for now · try samples/sample_demo_compact.pdf</div></div>
   <div class="sec"><h2>Built for contract triage</h2><span class="badge">ingest · decide · abstain · prove</span></div>${blocks()}
   <div class="sec"><h2>How Stego works</h2><span class="badge">6 stages · 3 outputs</span></div>
   <div class="flow">${[["INGEST","Contract PDF → pages. Every span keeps its page number (text is extracted with pypdf).",0],["SECTION SWEEP","Drex answers all 20 clause questions per page in one request.",1],["DRILL-DOWN","Pages with 0.2 < p < 0.9 are re-asked per paragraph.",1],["AGGREGATE","Plain code: presence = max p, evidence = pages ranked by p.",0],["ABSTENTION GATE","Confidence ≥ τ is decided. Below τ goes to a human.",0],["OUTPUTS","Clause board · human queue · review brief.",0]].map(([t,d,x],i)=>`<div class="card step ${x ? "drex" : ""}">${studs(2)}<span class="n">${i + 1}</span><h3 style="font-size:15px">${t}</h3><p>${d}</p></div>`).join("")}</div>
@@ -1088,8 +1088,8 @@ function raceView() {
       <button class="btn yellow" id="raceReplay" title="Plays a real run recorded during the benchmark">Replay recorded race</button>
       <select id="replaySpeed" title="Playback speed"><option value="1">real time</option><option value="10" selected>10× speed</option><option value="30">30× speed</option></select></div></div>
     <div id="raceBoard" style="margin-top:24px"></div>`;
-  $("#raceSample").onclick = async () => { try { const r = await fetch("/samples/sample_vendor_agreement.pdf"); if (!r.ok) throw new Error("sample PDF missing: run samples/make_sample.py");
-      startRace(new File([await r.blob()], "sample_vendor_agreement.pdf")); } catch (e) { toast(e.message); } };
+  $("#raceSample").onclick = async () => { try { const r = await fetch("/samples/sample_demo_compact.pdf"); if (!r.ok) throw new Error("sample PDF missing: run samples/make_demo_sample.py");
+      startRace(new File([await r.blob()], "sample_demo_compact.pdf")); } catch (e) { toast(e.message); } };
   $("#racePick").onchange = e => e.target.files[0] && startRace(e.target.files[0]);
   $("#raceReplay").onclick = () => startReplay(+$("#replaySpeed").value);
   drawRace(null, 0);
@@ -1254,7 +1254,7 @@ function about() {
   <div class="sec"><h2>How to use it</h2><span class="badge">about five minutes</span></div>
   <div class="card studs">${studs(4)}
     ${step(1, "Start the app", `Run it from the project folder, then open <code class="k">http://localhost:8000/</code>. Put your Drex key in <code class="k">.env</code> as <code class="k">NACE_API_KEY</code> (it is gitignored). Without a key you get mock Drex, clearly labelled.<pre class="cmd">.venv/bin/python app.py</pre>`)}
-    ${step(2, "Upload a contract", "Use the big red button on the Overview, the header button or the drop zone. Try <code class=\"k\">samples/sample_vendor_agreement.pdf</code> (5 pages) or the long samples in <code class=\"k\">samples/</code>. Cancel any time. Scanned PDFs need OCR, which is not wired yet.")}
+    ${step(2, "Upload a contract", "Use the big red button on the Overview, the header button or the drop zone. Try <code class=\"k\">samples/sample_demo_compact.pdf</code> (4 dense pages) or the long samples in <code class=\"k\">samples/</code>. Cancel any time. Scanned PDFs need OCR, which is not wired yet.")}
     ${step(3, "Read the clause board", "Start with the red and amber queues, then the human-review queue. Click a clause to see its probability and the highlighted passage. Approve or escalate to mark your own decision (kept in this browser, and sealed into the brief if you seal it).")}
     ${step(4, "Search the portfolio", "Open Portfolio Search, click the clauses you care about, and open any match in the Workspace.")}
     ${step(5, "Race it", "Open Live Race and pick the sample or your own PDF. The race first waits for Drex's per-minute rate window to clear, so the clock only starts when both sides are on equal footing. You need an LLM key in <code class=\"k\">.env</code> for the right-hand side.")}

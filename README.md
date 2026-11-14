@@ -27,6 +27,7 @@ python -m venv .venv && .venv/bin/pip install -r requirements.txt      # Windows
 .venv/bin/python samples/make_sample.py        # invented demo contract -> samples/sample_vendor_agreement.pdf
 .venv/bin/python app.py                        # http://localhost:8000/
 ```
+For the demo, `.venv/bin/python samples/make_demo_sample.py` writes `samples/sample_demo_compact.pdf`: an invented 4-page agreement with most of the 20 clause types, two left out on purpose and a couple worded softly. The Live Race's sample button uses it.
 Upload a PDF, open the clause board, review clauses, then seal the brief. `.venv/bin/python scripts/smoke.py` runs an offline end-to-end check (MOCK Drex, temporary folder, no keys). Mock mode is on whenever no Drex key is set.
 
 ### Run it: Drex provider (env only, no code change)

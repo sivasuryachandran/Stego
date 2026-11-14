@@ -391,9 +391,9 @@ def race_llm_profile():
     the race than the benchmark baseline (config.LLM_*). Unset: the race uses the baseline, as before."""
     m = os.getenv("RACE_LLM_MODEL")
     if not m:
-        return None
+        return {"fail_fast_429": True}
     return {"provider": "openai", "model": m, "base_url": os.getenv("RACE_LLM_BASE_URL", config.LLM_BASE_URL), "api_key": os.getenv("RACE_LLM_API_KEY", config.LLM_API_KEY),
-            "temperature": os.getenv("RACE_LLM_TEMPERATURE", "")}
+            "temperature": os.getenv("RACE_LLM_TEMPERATURE", ""), "fail_fast_429": True}
 
 
 RACE_LLM_CAP_S = int(os.getenv("RACE_LLM_CAP_S", "300"))   # a race never waits longer than this for the LLM side
@@ -472,7 +472,7 @@ def _race_main(rid, title, pages):
             except asyncio.TimeoutError:
                 R["llm"].update(status="error", ms=ms_now(), error=f"The LLM did not finish within {RACE_LLM_CAP_S} s (a thinking model on a long contract). Stego's result stands.")
             except Exception as e:
-                R["llm"].update(status="error", ms=ms_now(), error=f"{type(e).__name__}: {str(e)[:160]}")
+                R["llm"].update(status="error", ms=ms_now(), error=("The LLM provider refused the call: its quota or rate limit is used up (HTTP 429). Stego's result stands. Try the recorded replay, or use a funded key." if "HTTP 429" in str(e) else f"{type(e).__name__}: {str(e)[:160]}"))
 
         async def ticker():
             while "running" in (R["stego"]["status"], R["llm"]["status"]):

@@ -48,6 +48,7 @@ class LLMClient:
         self.base_url = p.get("base_url", config.LLM_BASE_URL)
         self.api_key = p.get("api_key", config.LLM_API_KEY)
         self.temperature = p.get("temperature", config.LLM_TEMPERATURE)
+        self.fail_fast_429 = p.get("fail_fast_429", False)   # Live Race: a rate-limit/quota answer ends the call at once instead of retrying for about a minute
         self.http = httpx.AsyncClient(timeout=300)
         self.calls = 0
         self.in_tokens = 0
@@ -119,6 +120,8 @@ class LLMClient:
                         return (j["choices"][0]["message"]["content"],
                                 {"in": u.get("prompt_tokens", 0), "out": u.get("completion_tokens", 0)}, "ok")
                 err = f"HTTP {r.status_code}: {r.text[:300]}"
+                if self.fail_fast_429 and r.status_code == 429:
+                    break
                 if r.status_code not in (408, 429, 500, 502, 503, 504, 529):
                     break
             except httpx.HTTPError as e:
