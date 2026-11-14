@@ -16,6 +16,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import unquote, urlparse
 
 from stego import config
+from stego.appchunk import chunk_hash, chunk_text_of, content_chunks
 from stego.arms import run_drex, run_llm
 from stego.data import Chunk, Contract, chunk_text
 from stego.defs import CUES, DEFINITIONS
@@ -69,6 +70,40 @@ def build_contract(title, pages):
         text += pg + "\n"
         chunks.append(Chunk(i, start, len(text), pg + "\n"))
     return Contract(title, text, chunks)
+
+
+def build_contract_content(title, pages):
+    """App path only: content-defined chunks (see stego/appchunk.py). contract.meta[i] = [(page, line), ...]."""
+    text, chunks, meta = "", [], []
+    for i, lines in enumerate(content_chunks(pages)):
+        t = chunk_text_of(lines)
+        chunks.append(Chunk(i, len(text), len(text) + len(t), t))
+        text += t
+        meta.append(lines)
+    ct = Contract(title, text, chunks)
+    ct.meta = meta
+    return ct
+
+
+class CountingCache(Cache):
+    """Counts answers served from the warm cache vs sent to Drex."""
+    def __init__(self, *a, **kw):
+        super().__init__(*a, **kw)
+        self.hits = self.misses = 0
+
+    def get(self, k):
+        v = super().get(k)
+        if v is None:
+            self.misses += 1
+        else:
+            self.hits += 1
+        return v
+
+
+def evidence_page(ct, idx, category):
+    lines = ct.meta[idx]
+    cue = re.compile(CUES.get(category, category), re.I)
+    return next((pg for pg, ln in lines if cue.search(ln)), lines[0][0])
 
 
 def clip(text, limit):
@@ -130,19 +165,25 @@ def _job_progress(drex, prog, n_pages):
     return {"phase": "drill", "pct": 65 + 30 * k / tot, "detail": f"Drilling into uncertain paragraphs: {k} / {prog['drill_total']}"}
 
 
-async def run_analysis(title, pages, pdf_name, job):
-    task = asyncio.ensure_future(analyze(title, pages, pdf_name, job))
+async def run_analysis(title, pages, pdf_name, job, parent=None):
+    task = asyncio.ensure_future(analyze(title, pages, pdf_name, job, parent))
     if job is not None:
         job["loop"], job["task"] = asyncio.get_running_loop(), task
     return await task
 
 
-async def analyze(title, pages, pdf_name, job=None):
+async def analyze(title, pages, pdf_name, job=None, parent=None):
     theta, tau, _ = thresholds()
     ledger_start = LEDGER.f.tell()
-    drex = DrexClient(LEDGER, Cache(os.path.join(LIVE, "cache.sqlite"), enabled=False))
+    cache = CountingCache(os.path.join(LIVE, "cache.sqlite"), enabled=True)   # warm content-hash cache: key = hash(model, chunk text, questions)
+    drex = DrexClient(LEDGER, cache)
     await drex.resolve_model()
-    ct = build_contract(title, pages)
+    ct = build_contract_content(title, pages)
+    parent_rec = None
+    if parent:
+        pp = os.path.join(LIVE, "contracts", re.sub(r"[^a-z0-9]", "", parent.lower()) + ".json")
+        if os.path.exists(pp):
+            parent_rec = json.load(open(pp))
     cats = config.CATEGORIES
     prog = {}
 
@@ -163,11 +204,19 @@ async def analyze(title, pages, pdf_name, job=None):
     for c in cats:
         ev = []
         for idx in out[c]["evidence"][:3]:
-            ev.append({"page": idx + 1, "chunk": idx, "text": locate(pages[idx], c)})
+            ev.append({"page": evidence_page(ct, idx, c), "chunk": idx, "text": locate(ct.chunks[idx].text, c)})
         clauses[c] = {"p": round(out[c]["p"], 4), "evidence": ev}
     cid = uuid.uuid4().hex[:10]
     rec = {"id": cid, "title": title, "pages": len(pages), "ms": round(ms), "pdf": f"/runs/live/uploads/{pdf_name}" if pdf_name else None,
-           "live": True, "drex_decisions": drex.decisions, "analyzed_at": time.time(), "mock": config.MOCK, "clauses": clauses}
+           "live": True, "drex_decisions": drex.decisions, "analyzed_at": time.time(), "mock": config.MOCK, "clauses": clauses,
+           "chunk_hashes": [chunk_hash(c.text) for c in ct.chunks], "version": 1, "parent_id": None,
+           "cache": {"requests_cached": cache.hits, "requests_sent": cache.misses}}
+    if parent_rec:
+        old = set(parent_rec.get("chunk_hashes") or [])
+        reused = sum(1 for h in rec["chunk_hashes"] if h in old)
+        rec.update(version=(parent_rec.get("version") or 1) + 1, parent_id=parent_rec["id"])
+        rec["cache"].update(label="warm cache", chunks_total=len(ct.chunks), chunks_reused=reused, chunks_reasked=len(ct.chunks) - reused,
+                            parent_ms=parent_rec.get("ms"), parent_chunks=len(old))
     json.dump(rec, open(os.path.join(LIVE, "contracts", cid + ".json"), "w"))
     if job is not None:
         job.update(phase="done", pct=100, detail="Fossil unearthed")
@@ -492,7 +541,8 @@ class H(BaseHTTPRequestHandler):
             if name.lower().endswith(".pdf"):
                 pdf_name = uuid.uuid4().hex[:8] + ".pdf"
                 open(os.path.join(LIVE, "uploads", pdf_name), "wb").write(data)
-            rec = asyncio.run(run_analysis(os.path.splitext(name)[0], pages, pdf_name, job))
+            parent = re.sub(r"[^a-z0-9]", "", self.headers.get("X-Parent", "").lower())[:16] or None
+            rec = asyncio.run(run_analysis(os.path.splitext(name)[0], pages, pdf_name, job, parent))
             self.send_json(rec)
         except asyncio.CancelledError:
             if job is not None:
