@@ -22,17 +22,20 @@ button{font:inherit;color:inherit;cursor:pointer}
 .mono{font-family:var(--mono)} .head{font-family:var(--head)}
 .up{text-transform:uppercase;letter-spacing:.05em}
 /* top bar */
-header{position:sticky;top:0;z-index:10;background:var(--canvas);border-bottom:2px solid var(--ink);display:flex;align-items:center;gap:20px;padding:10px 40px;flex-wrap:wrap}
+header{position:sticky;top:0;z-index:10;background:var(--canvas);border-bottom:2px solid var(--ink);display:flex;align-items:center;gap:14px;padding:8px 24px;flex-wrap:nowrap}
 .logo{font:700 24px var(--head);letter-spacing:-.02em}
 .tag{font:500 11px var(--mono);border:2px solid var(--ink);border-radius:8px;padding:4px 10px;background:var(--grey);box-shadow:3px 3px 0 var(--ink)}
 nav{display:flex;gap:4px;flex:1;justify-content:center;flex-wrap:nowrap;min-width:0}
-nav button{background:none;border:2px solid transparent;border-radius:8px;padding:6px 11px;font:500 15px var(--head);color:var(--mut);white-space:nowrap}
+nav button{background:none;border:2px solid transparent;border-radius:8px;padding:5px 8px;font:500 14px var(--head);color:var(--mut);white-space:nowrap}
 nav button[aria-current=page]{background:var(--white);border-color:var(--ink);box-shadow:3px 3px 0 var(--ink);color:var(--ink)}
-.hstack{display:flex;flex-direction:column;align-items:stretch;gap:6px;flex:none}
+.hstack{display:flex;flex-direction:row;align-items:center;gap:8px;flex:none}
 .hstack .pill{justify-content:center;white-space:nowrap}
 .hstack .btn.sm{padding:3px 10px;text-align:center;white-space:nowrap}
-@media(max-width:2100px){.tag{display:none}}
-@media(max-width:2100px){nav{order:3;flex:1 0 100%}header{row-gap:10px}}
+header .tag{display:none}
+header .brand{flex:none}
+header #upload,header .hstack{flex:none}
+@media(max-width:1440px){header{gap:8px;padding:8px 14px}header .logo{display:none}nav button{padding:5px 6px;font-size:13.5px}header .hstack{gap:6px}}
+@media(max-width:1180px){header{flex-wrap:wrap;row-gap:8px}nav{order:3;flex:1 0 100%}}
 @media(max-width:760px){nav{justify-content:flex-start;overflow-x:auto}}
 .pill{display:inline-flex;align-items:center;gap:6px;font:700 11px var(--mono);border:2px solid var(--ink);border-radius:8px;padding:5px 10px;background:var(--white);box-shadow:2px 2px 0 var(--ink)}
 .dot{width:10px;height:10px;border-radius:50%;background:var(--green);border:1.5px solid var(--ink);display:inline-block}
@@ -373,6 +376,7 @@ pre.cmd{background:#111;color:#fff;padding:12px 14px;border-radius:8px;font:500 
 .done-card{animation:pop .35s ease-out both;padding-bottom:20px}
 @media(prefers-reduced-motion:reduce){.confetti,.donest,.dino.party *,.done-card{animation:none!important}}
 #csel,.toolbar select{width:min(100%,560px);max-width:100%;text-overflow:ellipsis}
+.ws-r .lgrid{grid-template-columns:1fr}
 </style>
 </head>
 <body>
@@ -385,7 +389,7 @@ pre.cmd{background:#111;color:#fff;padding:12px 14px;border-radius:8px;font:500 
     <span class="pill"><span class="dot"></span><span id="model">Drex</span></span>
     <button class="btn sm" id="demoBtn" title="Hide the sample/mock banners for a clean demo (needs live Drex and real results)">Demo mode: off</button>
   </div>
-  <select id="tplsel" title="Contract type: Auto detects it with Drex" style="margin-right:6px;display:none"><option value="commercial">Type: commercial (CUAD 20)</option><option value="auto">Auto-detect with Drex</option><option value="lease">Lease</option><option value="loan">Loan</option><option value="health_insurance">Health insurance</option></select>
+  <select id="tplsel" title="Contract type: Auto detects it with Drex" style="margin-right:6px;display:none"><option value="commercial">Commercial contract</option><option value="auto">Auto-detect with Drex</option><option value="lease">Lease</option><option value="loan">Loan</option><option value="health_insurance">Health insurance</option></select>
   <button class="btn green sm" id="upload">⬆ Upload contract</button>
 </header>
 <div class="strip"><span>DETERMINISTIC CLAUSE TRIAGE BAY // DREX DECIDES, PLAIN CODE AGGREGATES // MIND THE PLATES</span><span class="sticker" id="runtime">SAMPLE</span></div>
@@ -452,7 +456,7 @@ const armB = () => D.summary.find(s => s.arm[0] === "B") || {};
 const loc = c => { const e = c.evidence[0]; return e ? (e.page ? "Page " + e.page : "Chunk " + e.chunk) : "–"; };
 
 /* ---------- shell ---------- */
-const TABS = { landing: "Overview", workspace: "Workspace", race: "Live Race", portfolio: "Portfolio Search", bench: "Benchmark", brief: "Review Brief", about: "About" };
+const TABS = { landing: "Overview", workspace: "Workspace", brief: "Review Brief", race: "Live Race", portfolio: "Portfolio Search", bench: "Benchmark", about: "About" };
 function toast(t) { const el = document.createElement("div"); el.className = "toast"; el.textContent = t; document.body.append(el); setTimeout(() => el.remove(), 3200); }
 const ROUTES = { landing: "/", workspace: "/workspace", race: "/race", portfolio: "/portfolio", bench: "/benchmark", brief: "/brief", about: "/about" };
 const fromHash = () => { const h = location.hash.replace(/^#/, "") || "/"; return Object.keys(ROUTES).find(k => ROUTES[k] === h) || "landing"; };
@@ -464,7 +468,7 @@ function render() {
   document.title = "Stego · " + TABS[state.tab];
   const liveDrex = D.server && D.server.mode === "live", mockDrex = D.server && D.server.mode === "mock";
   const demoOK = !!liveDrex && !D.sample, demo = demoOK && !!state.demo;
-  $("#model").textContent = liveDrex ? "Drex · live · " + D.server.drex_model + (D.server.drex_provider ? " · " + D.server.drex_provider.replace(/^Drex /, "") : "") : mockDrex ? "Drex · MOCK" : D.sample ? "Drex · sample data" : "Drex · " + D.drex_model;
+  $("#model").textContent = liveDrex ? "LIVE · " + D.server.drex_model.replace(/^nace-ai\//, "") + (D.server.drex_provider ? " · " + D.server.drex_provider.replace(/^Drex via /, "") : "") : mockDrex ? "Drex · MOCK" : D.sample ? "Drex · sample data" : "Drex · " + D.drex_model;
   document.querySelector(".pill .dot").style.background = liveDrex ? "var(--green)" : mockDrex ? "var(--amber)" : "#999";
   $("#runtime").textContent = D.sample ? "SAMPLE DATA" : "RUN: " + D.run.toUpperCase();
   $("#runtime").style.display = demo ? "none" : "";
@@ -779,6 +783,7 @@ function workspace() {
     <div class="lab" style="text-transform:none;font-size:13px">Read the evidence, then confirm, reject or escalate. Open a group in the clause board to pick another clause.</div>
     <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-top:10px">
       <select id="csel">${D.contracts.map((c, i) => `<option value="${i}" ${i === state.ci ? "selected" : ""}>${esc(c.title)}${c.version > 1 ? " (v" + c.version + ")" : ""}</option>`).join("")}</select>
+      <label class="lab" style="text-transform:none;font-size:13px;display:flex;align-items:center;gap:6px">Contract type <select id="tplsel2" title="Applies to the next upload. Templates other than Commercial are not benchmarked."></select></label>
       <button class="btn green sm" id="wsUpload">⬆ Upload a contract</button></div>
     <div class="runline" style="margin-top:10px;font:600 13px var(--mono)">${esc(runLine)}</div></div>
   <div class="ws">
@@ -808,12 +813,13 @@ function workspace() {
           <button class="btn ${dec?.decision === "not_present" ? "dark" : ""}" data-d="not_present" ${ct.live ? "" : "disabled"}>Not present</button>
           <button class="btn ${dec?.decision === "escalated" ? "red" : ""}" data-d="escalated" ${ct.live ? "" : "disabled"}>Escalate</button></div>
         <div class="lab" style="margin-top:10px;text-transform:none;font-size:12px">${dec ? `Recorded: <b>${DEC_LABEL[dec.decision]}</b> by ${esc(dec.reviewer)} at ${esc(dec.at.replace("T", " ").replace("+00:00", " UTC"))}` : ct.live ? "Not decided yet. Stego routes; a person decides." : "Upload a contract to record decisions: sample contracts have no ledger."}</div>
-        </div></div></div>
-  
+        </div>
   <div class="card studs ldg" id="board">${studs(4)}<div class="ldg-h"><h3>Clause board</h3><span class="lab">${cats.length} clauses · open a group, then click a clause</span></div>
     ${[["r", "Urgent (policy flag)"], ["a", "Found · confirm"], ["u", "Human review"], ["g", "Auto-cleared"]].filter(([k]) => q[k].length).map(([k, t]) => `<details class="bgrp ${k}" data-g="${k}" ${(state.og || {})[k] ? "open" : ""} style="margin-top:10px"><summary style="cursor:pointer;font:700 15px var(--head);padding:6px 0"><span class="badge ${k === "r" ? "r" : k === "g" ? "g" : k === "a" ? "a" : ""}">${q[k].length}</span> ${t}</summary><div class="lgrid" style="margin-top:8px">${q[k].map(tile).join("")}</div></details>`).join("")}</div>
+    </div></div>
+  
   <div style="margin:14px 0 24px"><button class="btn dark" id="wsSeal">Seal brief</button></div>
-  <details class="card" id="adv" style="margin-top:24px"><summary style="cursor:pointer;font:700 16px var(--head)">Advanced <span class="lab" style="text-transform:none">templates · re-upload as v2 · cache details · reviewer note</span></summary>
+  <details class="card" id="adv" style="margin-top:24px"><summary style="cursor:pointer;font:700 16px var(--head)">Advanced <span class="lab" style="text-transform:none">re-upload as v2 · cache details · reviewer note</span></summary>
     <div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:14px;align-items:stretch">
       ${ct.live && ct.template ? `<div class="card" style="margin:0;padding:8px 14px"><div class="lab">TEMPLATE</div><div class="metric" style="font-size:20px">${esc(ct.template_label)}</div><div class="lab" style="text-transform:none">${ct.benchmarked ? "benchmarked on CUAD" : "<b>NOT BENCHMARKED</b>: no gold labels"}${ct.template_detected ? "<br>detected: " + Object.entries(ct.template_detected).map(([k, v]) => k.replace("_", " ") + " " + v.toFixed(2)).join(" · ") : ""}</div></div>` : ""}
       ${(() => { const c = ct.cache; if (!c) return ""; const ap = c.requests_approx || 0, hit = c.requests_cached + ap, n = hit + c.requests_sent; if (!hit && !c.label) return "";
@@ -822,7 +828,6 @@ function workspace() {
       <div class="card" style="margin:0;padding:8px 14px"><div class="lab">Cache detail</div><div style="font:500 13px var(--body)">${ct.live ? esc(cacheCounts(ct)) : "measured run: no cache"}</div></div>
       <div class="card" style="margin:0;padding:8px 14px"><div class="lab">Reasoning-LLM calls</div><div class="metric" style="font-size:24px">${llmNoteCount(ct)}</div></div>
       ${ct.live && D.server ? `<div class="card" style="margin:0;padding:8px 14px"><div class="lab">Parse cost${ct.mock ? " (mock)" : ""}</div><div class="metric" style="font-size:24px">$${((D.liveLedger || []).filter(r => r.contract === ct.title && r.status !== "cached").reduce((a, r) => a + (r.input_tokens || 0), 0) / 1e6 * D.server.drex_price_per_m).toFixed(4)}</div></div>` : ""}</div>
-    <div style="margin-top:14px"><div class="lab" style="margin-bottom:6px">Contract type for the next upload (templates are not benchmarked)</div><select id="tplsel2"></select></div>
     <div style="margin-top:14px">${ct.live ? `<label class="btn sm" style="cursor:pointer" title="Upload a revised version: unchanged chunks are answered from the warm cache">Re-upload as v2<input id="v2file" type="file" accept=".pdf,.txt" hidden></label>` : ""}</div>
     <div style="margin-top:10px"><div class="lab" style="margin-top:8px">Red = urgent (policy flag) · amber = found, confirm it · dashed grey = below τ, goes to a human · green = auto-cleared</div></div>
     <div style="margin-top:14px"><p style="margin:0 0 14px;font-weight:500">${{ r: "Present with confidence. Urgency is a policy layer, not ground truth: CUAD labels presence, not risk.", a: "Present with confidence. A lawyer should read this passage.", u: `Stego doesn't force a decision when the evidence is weak. It leans ${cl.p >= D.theta ? "present" : "absent"} (p=${cl.p.toFixed(2)}). A person decides.`, g: "Confidently absent. Cleared without a human." }[qk]}</p>
