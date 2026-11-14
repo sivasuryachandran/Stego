@@ -86,7 +86,7 @@ makes no head-to-head claim against the LLM; the Benchmark page shows only B and
 - The claim is "modified or stripped after sealing", never who changed it.
 - Rehearsal results: a one-pixel tamper fails verification; the in-app **Forger Test** is **simulated** (a second test signer re-signs an edited brief) and is labelled as such.
   A real edit in Photoshop on the web exported a file with **no credentials**, which the app reports as "No credentials".
-- `assets/mascot_firefly.png` is a Firefly-generated image embedded as an ingredient. It is a re-saved copy, so it does not carry Firefly's own credentials.
+- `assets/mascot_firefly.png` is the original file downloaded from Adobe Firefly, unmodified, with its own Content Credentials (generator Adobe Firefly, issuer Adobe Inc.). Every seal embeds it as an ingredient and draws it in the seal box.
 
 ## Limits
 - Weakest categories (F1): Warranty Duration 0.50, Uncapped Liability 0.60, Non-Transferable License 0.62, Post-Termination Services 0.64.
