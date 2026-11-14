@@ -1033,20 +1033,24 @@ function verifyModal(name, v, err) {
   back.onclick = e => { if (e.target === back) close(); };
   document.addEventListener("keydown", onKey); document.body.append(back); back.querySelector("#vmClose").onclick = close; }
 const issuesHTML = v => (v.issues || []).map(i => `<div class="banner sample" style="margin:8px 0 0">${esc(i)}</div>`).join("");
+function bindVerify() {
+  $("#vfile").onchange = async e => { const f = e.target.files[0]; if (!f) return;
+    try { const v = await postJSON("/api/verify", f); verifyModal(f.name, v); e.target.value = ""; { const vr = $("#vres"); if (vr) vr.innerHTML = `<div class="fr-res"><b>${esc(f.name)}</b> ${vBadge(v)} ${v.untrusted_signer ? '<span class="badge a">untrusted signer</span>' : ""}${issuesHTML(v)}<div class="fr-kv"><b>Signer</b><span>${esc(v.signer || "–")}</span>${v.record ? `<b>Contract</b><span>${esc(v.record.contract)}</span><b>Flagged</b><span>${v.record.flagged.length}</span>` : ""}</div></div>`; } }
+    catch (err) { verifyModal(f.name, null, err.message); } };
+}
 function fossilPanel(ct) {
   const el = $("#fossil"); if (!el) return;
   const head = `<div class="fr-head"><div><span class="badge y">The Fossil Record</span><h2 style="margin:8px 0 2px">Seal this brief with Content Credentials</h2>
     <div class="lab" style="max-width:720px;text-transform:none;font:500 14px var(--body);color:var(--mut)">Drex decides. The evidence page grounds it. Content Credentials (C2PA) seal it: model, probabilities, evidence pages, a hash of the call ledger and any human review. It proves who decided from what evidence, not that the decision was right.</div></div>`;
   if (!ct.live || !D.server || !D.server.fossil) {
-    el.innerHTML = `<div class="card studs">${studs(3)}${head}</div><div class="lab" style="margin-top:12px">${!D.server ? "Start the app server to seal briefs." : !D.server.fossil ? "Install c2pa-python, pillow and cryptography in the venv to enable sealing." : "Only uploaded contracts can be sealed: they have a call ledger to hash. Upload samples/sample_vendor_agreement.pdf."}</div>`; return; }
+    el.innerHTML = `<div class="card studs">${studs(3)}${head}</div><div id="vres"></div><div class="lab" style="margin-top:12px">${!D.server ? "Start the app server to seal briefs." : !D.server.fossil ? "Install c2pa-python, pillow and cryptography in the venv to enable sealing." : "Only uploaded contracts can be sealed: they have a call ledger to hash. Upload samples/sample_vendor_agreement.pdf."}</div>`; return; }
   const S = SEALS[ct.id];
   const reviews = ct.live ? (D.decisions && D.decisions[ct.id]) || {} : {};
   const rec = S && S.record;
-  el.innerHTML = `<div class="card studs">${studs(4)}${head}<div style="display:flex;gap:10px;flex-wrap:wrap"><button class="btn dark" id="doSeal">${ICON.seal}Seal &amp; export brief</button>
-      <label class="btn" style="cursor:pointer">Verify a file…<input id="vfile" type="file" accept="image/png" hidden></label></div></div>
+  el.innerHTML = `<div class="card studs">${studs(4)}${head}</div>
     ${Object.keys(reviews).length ? `<div class="lab" style="margin-top:8px">${Object.keys(reviews).length} human action(s) from the workspace will be sealed in.</div>` : ""}
     ${S ? `<div class="fr-grid"><div><img class="fr-img" src="${S.url}" alt="Sealed brief">
-        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px"><a class="btn sm" href="${S.url}" download>⬇ Download sealed PNG</a><a class="btn sm yellow" target="_blank" rel="noopener" href="https://contentcredentials.org/verify">Open Adobe's verifier ↗</a><button class="btn sm red" id="doTamper">Tamper test</button><button class="btn sm" id="doForge">Forger Test (simulated)</button></div>
+        
         <div id="tres"></div><div id="fres"></div></div>
       <div class="card" style="margin:0">${vBadge(S.verify)} ${S.verify.untrusted_signer ? '<span class="badge a">TEST CERTIFICATE · untrusted signer</span>' : ""}
         ${rec.drex.mode === "mock" ? '<div class="banner sample" style="margin:12px 0 0">Sealed from MOCK Drex output. The seal proves provenance of this file, not that these are real Drex probabilities.</div>' : ""}
@@ -1058,19 +1062,13 @@ function fossilPanel(ct) {
           ${rec.flagged.map(d => `<tr><td class="l">${esc(d.clause)}</td><td>${d.probability.toFixed(2)}</td><td>p.${d.evidence_page ?? "–"}</td><td>${esc(d.queue)}</td><td>${esc(d.human_review && typeof d.human_review === "object" ? (DEC_LABEL[d.human_review.decision] || d.human_review.decision) + " · " + d.human_review.reviewer : d.human_review || "–")}</td></tr>`).join("")}</tbody></table>
         <div class="lab" style="margin-top:8px">Adobe's verify page shows the standard fields (creator, action). This panel reads the full record from the same seal.</div></div></div>` : ""}
     <div id="vres"></div>`;
-  $("#doSeal").onclick = async e => { e.target.disabled = true; e.target.innerHTML = ICON.seal + "Sealing the fossil…";
-    try { SEALS[ct.id] = await postJSON("/api/seal", { id: ct.id, reviews }); toast("Sealed: " + (SEALS[ct.id].verify.valid ? "valid" : "check status")); }
-    catch (err) { toast("The seal cracked: " + err.message); } fossilPanel(ct); };
   const t = $("#doTamper"); if (t) t.onclick = async () => { try { const r = await postJSON("/api/tamper", { name: S.name });
-      $("#tres").innerHTML = `<div class="fr-res">${vBadge(r.verify)}<div class="lab" style="margin-top:8px;text-transform:none">One pixel changed, manifest kept. ${r.verify.tampered ? "Verification fails: the seal no longer matches the content." : ""}</div><a class="btn sm" style="margin-top:8px;display:inline-block" href="${r.url}" download>⬇ Download tampered copy</a></div>`; } catch (err) { toast(err.message); } };
+      $("#tres").innerHTML = `<div class="fr-res">${vBadge(r.verify)}<div class="lab" style="margin-top:8px;text-transform:none">One pixel changed, manifest kept. ${r.verify.tampered ? "Verification fails: the seal no longer matches the content." : ""}</div></div>`; } catch (err) { toast(err.message); } };
   const fg = $("#doForge"); if (fg) fg.onclick = async () => { fg.disabled = true; try { const r = await postJSON("/api/forge", { name: S.name });
       const side = (title, img, v, extra) => `<div class="card" style="margin:0;padding:10px"><b class="head">${title}</b><div style="margin:6px 0">${vBadge(v)}</div><img class="fr-img" style="box-shadow:none" src="${img}" alt="${title}">${issuesHTML(v)}${extra || ""}</div>`;
       $("#fres").innerHTML = `<div class="fr-res"><b class="head">The Forger Test</b><div class="lab" style="text-transform:none;margin:4px 0 10px">REHEARSAL: a second test signer quietly cleared "${esc(r.victim || "a flag")}" and re-signed. For the real test, edit the sealed PNG in Photoshop with Content Credentials on and drop it into "Verify a file…". The seal shows the file changed after Stego signed it. It does not show who changed it.</div>
         <div class="grid g2" style="gap:12px">${side("Original", S.url, r.original)}${side("Forgery", r.url, r.verify, r.verify.editor ? `<div class="lab" style="margin-top:6px">editor: ${esc(r.verify.editor)}</div>` : "")}</div></div>`; }
     catch (err) { toast(err.message); } fg.disabled = false; };
-  $("#vfile").onchange = async e => { const f = e.target.files[0]; if (!f) return;
-    try { const v = await postJSON("/api/verify", f); verifyModal(f.name, v); e.target.value = ""; $("#vres").innerHTML = `<div class="fr-res"><b>${esc(f.name)}</b> ${vBadge(v)} ${v.untrusted_signer ? '<span class="badge a">untrusted signer</span>' : ""}${issuesHTML(v)}<div class="fr-kv"><b>Signer</b><span>${esc(v.signer || "–")}</span>${v.record ? `<b>Contract</b><span>${esc(v.record.contract)}</span><b>Flagged</b><span>${v.record.flagged.length}</span>` : ""}</div></div>`; }
-    catch (err) { verifyModal(f.name, null, err.message); } };
 }
 
 
@@ -1360,10 +1358,13 @@ function brief() {
     return `<tr><td class="l"><b>${esc(c)}</b>${hr(c)}</td><td>${loc(x)}</td><td>${x.p.toFixed(2)}</td><td>${yes ? "leans present" : "leans absent"}</td><td class="l">${yes && e?.text ? esc(clip(e.text, 110)) : NOEV}</td></tr>`; };
   $("#view").innerHTML = `
   <div class="toolbar noprint" style="display:flex;gap:12px;flex-wrap:wrap;align-items:center"><select id="csel">${D.contracts.map((c, i) => `<option value="${i}" ${i === state.ci ? "selected" : ""}>${esc(c.title)}</option>`).join("")}</select>
-    <button class="btn dark" onclick="printBrief()">${ICON.print}Print / save PDF</button>
     <button class="btn ${S ? "green" : "yellow"}" id="tbSeal" ${canSeal ? "" : "disabled"} title="${canSeal ? "Sign the brief with Content Credentials" : "Upload a contract to seal its brief"}">${ICON.seal}${S ? "Re-seal brief" : "Seal brief"}</button>
+    ${S ? `<a class="btn dark" id="tbDownload" href="${S.url}" download>⬇ Download</a>` : `<button class="btn dark" id="tbDownload" disabled title="Seal the brief first, then download it">⬇ Download</button>`}
+    <label class="btn red" style="cursor:pointer" title="Check whether a file still carries a valid Stego seal">Verify a file…<input id="vfile" type="file" accept="image/png" hidden></label>
     ${S ? `<span class="badge ${S.verify.valid ? "g" : "r"}">Sealed ✓ ${S.verify.valid ? "valid" : "check"}</span>` : ""}
-    <button class="btn" id="exj">{ } Export JSON</button><button class="btn" data-go="workspace">← Back to workspace</button></div>
+    <button class="btn" data-go="workspace">← Back to workspace</button></div>
+  <details class="noprint" style="margin:10px 0 0"><summary style="cursor:pointer;font:600 14px var(--head)">More options <span class="lab" style="text-transform:none">print · export JSON · Adobe's verifier · tamper and forger tests</span></summary>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px"><button class="btn sm" onclick="printBrief()">${ICON.print}Print / save PDF</button><button class="btn sm" id="exj">{ } Export JSON</button><a class="btn sm yellow" target="_blank" rel="noopener" href="https://contentcredentials.org/verify">Open Adobe's verifier ↗</a>${S ? `<button class="btn sm red" id="doTamper">Tamper test</button><button class="btn sm" id="doForge">Forger Test (simulated)</button>` : ""}</div></details>
   <div id="fossil" class="noprint" style="margin:20px 0 28px"></div>
   <div class="sheet"><span class="sticker" style="position:absolute;top:-14px;right:20px;font-size:13px;transform:rotate(1.5deg)">Clause triage · not legal approval</span>
     <span class="badge g">Brief</span> <span class="lab">${D.sample ? "sample data" : "run " + esc(D.run)}</span>${S ? ` <span class="badge ${S.verify.valid ? "g" : "r"}">Sealed ✓</span>` : ""}
@@ -1378,7 +1379,7 @@ function brief() {
     <div class="band g"><span>Auto-cleared (confidently absent)</span><span class="badge">${q.g.length} clauses</span></div><div class="bsec"><div class="ag">${q.g.map(c => `<div><span>${esc(c)}</span><span class="mono" style="color:var(--green-d)">cleared</span></div>`).join("") || "None"}</div></div>
     <div class="lab" style="margin-top:20px">Clause triage, not a legal-risk score. "Urgent" is a policy layer with no ground truth. Presence decided by Drex; ${llmNoteCount(ct) ? `an optional LLM note helper was used ${llmNoteCount(ct)}×, so this is not Drex-only.` : "no general-purpose reasoning LLM."}</div></div>
   <div id="printdoc">${printDoc(ct, q)}</div>`;
-  fossilPanel(ct);
+  fossilPanel(ct); bindVerify();
   $("#tbSeal").onclick = () => sealBrief(ct);
   $("#csel").onchange = e => { state.ci = +e.target.value; brief(); };
   $("#exj").onclick = () => { const b = new Blob([JSON.stringify({ contract: ct.title, theta: D.theta, tau: D.tau, queues: q, clauses: ct.clauses }, null, 2)], { type: "application/json" });
