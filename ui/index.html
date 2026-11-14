@@ -753,7 +753,7 @@ function workspace() {
   const dec = ct.live ? ((D.decisions || {})[ct.id] || {})[state.sel] : null;   // the server ledger
   const item = c => { const x = ct.clauses[c], k = queue(c, x.p);
     return `<button class="q ${k} ${c === state.sel ? "sel" : ""}" data-c="${esc(c)}"><div class="row"><span>${esc(c)}</span><span class="badge">${loc(x)}</span></div>
-      <div class="meter"><i style="width:${x.p * 100}%"></i></div><div class="m"><span>${k === "u" ? "UNCERTAIN" : k === "r" ? "URGENT (POLICY)" : "REVIEW"}</span><span>p=${x.p.toFixed(2)}</span></div></button>`; };
+      <div class="meter"><i style="width:${x.p * 100}%"></i></div><div class="m"><span>${k === "u" ? (x.p < D.theta ? "LIKELY ABSENT" : "UNCERTAIN") : k === "r" ? "URGENT (POLICY)" : "FOUND - CONFIRM"}</span><span>p=${x.p.toFixed(2)}</span></div></button>`; };
   const nums = ledgerNums();
   const segs = n => `<div class="seg">${Array.from({ length: 12 }, (_, i) => `<i style="${i < Math.round(n / D.categories.length * 12) ? "background:var(--ink)" : ""}"></i>`).join("")}</div>`;
   $("#view").innerHTML = `
@@ -772,14 +772,14 @@ function workspace() {
         <div class="lab" style="margin-top:8px">Viewer: PDF.js · the evidence passage is highlighted by Stego · <a target="_blank" rel="noopener" href="${ct.pdf}#page=${ev?.page || 1}">Open the PDF at page ${ev?.page || 1} ↗</a></div>` : ""}
       <div class="page" style="margin-top:20px"><div class="hd"><span>${esc(ct.title)}</span><span>${loc(cl)}</span></div>
         ${ev && ev.text && cl.p >= D.theta ? `<p class="faded">… preceding provisions of the Agreement …</p>
-          <div class="hl"><span class="flag">${qk === "u" ? "UNCERTAIN" : qk === "g" ? "NOT PRESENT" : "FLAGGED: " + esc(state.sel.toUpperCase())}</span>
+          <div class="hl"><span class="flag">${qk === "u" ? (cl.p < D.theta ? "LIKELY ABSENT" : "UNCERTAIN") : qk === "g" ? "NOT PRESENT" : "FLAGGED: " + esc(state.sel.toUpperCase())}</span>
           <div class="lab" style="color:#111">Extracted passage (Drex evidence)</div><div style="font:600 15px/1.6 var(--body)">${esc(ev.text)}</div></div>
           <p class="faded">… following provisions of the Agreement …</p>`
         : cl.p < D.theta ? `<div class="hl" style="background:var(--grey);box-shadow:none"><div class="lab" style="color:#111">Evidence</div><b>No supporting passage found</b> for this clause (p=${cl.p.toFixed(2)} is below θ=${D.theta}).</div>` : `<div class="hl"><div class="lab" style="color:#111">Evidence</div>Drex ranked <b>${ev ? "chunk " + ev.chunk : "no chunk"}</b> of the CUAD text for this clause. Page highlighting needs the NDI pipeline.</div>`}
       </div></div>
     <div class="ws-r">
       <div class="card ${qk === "r" ? "r" : qk === "u" ? "u" : qk === "g" ? "g" : "a"} studs">${studs(4)}
-        <span class="badge ${qk === "r" ? "r" : qk === "u" ? "" : qk === "g" ? "g" : "a"}">${{ r: "Urgent (policy flag)", a: "Found · confirm", u: "Human review", g: "Auto-cleared" }[qk]}</span>
+        <span class="badge ${qk === "r" ? "r" : qk === "u" ? "" : qk === "g" ? "g" : "a"}">${{ r: "Urgent (policy flag)", a: "Found · confirm", u: cl.p < D.theta ? "Likely absent · human review" : "Human review", g: "Auto-cleared" }[qk]}</span>
         <h2 style="margin:10px 0">Clause: ${esc(state.sel)}</h2>
         <div class="card" style="background:#fff;margin:0 0 14px;padding:10px 14px"><div style="display:flex;justify-content:space-between"><span class="lab">Drex probability</span><b class="mono">p=${cl.p.toFixed(3)}</b></div>
           <div class="meter" style="height:12px"><i style="width:${cl.p * 100}%"></i></div>
