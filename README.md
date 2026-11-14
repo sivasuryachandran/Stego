@@ -57,6 +57,19 @@ Both providers serve the same `/v1/systemone` contract. `DREX_API_KEY` takes pri
 
 Copy `.env.example` to `.env` to start. Never commit `.env`.
 
+## Repo layout
+| Path | What it is |
+|---|---|
+| `app.py`, `fossil.py` | The app server (upload, race, decisions) and the Content Credentials sealing and verifying. |
+| `stego/` | Drex client, LLM client, arms, metrics, config, templates and the app chunker. |
+| `ui/` | The single-page app (`index.html`), the bundled PDF.js in `ui/vendor/pdfjs/`, and the recorded race in `ui/replay/`. |
+| `run_bench.py`, `runs/` | The benchmark harness. `runs/final` holds the reported results and every call receipt (`ledger.jsonl`); `runs/thresholds.json` is the frozen θ and τ. |
+| `samples/` | Invented demo contracts and the scripts that regenerate them. |
+| `tests/`, `scripts/smoke.py` | Offline tests and an end-to-end smoke test (MOCK Drex, no keys). |
+| `tools/`, `docs/` | Claim checker and cost tools; deploy notes and the 2-minute pitch deck. |
+
+Run the checks: `.venv/bin/python scripts/smoke.py`, then `.venv/bin/python tests/test_drex_errors.py`, `tests/test_fossil_intern.py`, `tests/test_intern_env.py`, `tests/test_llm_429.py`, and `python tools/check_claims.py` (every README number against `runs/final/results.json`).
+
 ## Benchmark protocol
 - **Data:** official CUAD **test split** (`data/cuad/test.json`, 102 contracts, lawyer-annotated, CC BY 4.0, The Atticus Project).
   Download `data.zip` from github.com/TheAtticusProject/cuad and put `test.json` in `data/cuad/` (not committed).
