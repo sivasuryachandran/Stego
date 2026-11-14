@@ -1,0 +1,30 @@
+=== CALIB (20 calibration contracts, Drex only) ===
+Drex model: drex-v2.0 | LLM: openai/gemini-3.5-flash | mock=False
+  [drex-calib] 20 contracts in 48.5s
+FROZEN theta=0.48 tau=0.918 -> runs/thresholds.json
+calib exit: 0
+
+=== BENCH (82 report contracts, Drex-only arm, no cache) ===
+Drex model: drex-v2.0 | LLM: openai/gemini-3.5-flash | mock=False
+theta=0.48 tau=0.9178 | 82 contracts | 1222 chunks
+  [drex] 82 contracts in 159.8s
+
+metric                        B Stego (Drex only)         
+accuracy                      0.9049                      
+macro_f1                      0.7959                      
+micro_f1                      0.8344                      
+evidence_hit@1                0.9440                      
+evidence_hit@3                0.9949                      
+brier                         0.0723                      
+ece                           0.0315                      
+selective_acc@80              0.9543                      
+selective_acc@90              0.9383                      
+selective_acc@100             0.9049                      
+acc_when_conf>=0.93           0.9631                      
+latency_p50_ms                6945.1723                   
+latency_p95_ms                14515.9903                  
+cost_per_contract_usd         0.0022                      
+llm_calls                     0                           
+drex_decisions_per_contract   334.3171                    
+failed_contracts              0                           
+bench exit: 0

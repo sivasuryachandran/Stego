@@ -1,0 +1,11 @@
+*.pyc
+*.zip
+.DS_Store
+.env
+.venv/
+Stego*Product Doc*.pdf
+__pycache__/
+data/
+keys/
+runs/cache.sqlite
+runs/live/

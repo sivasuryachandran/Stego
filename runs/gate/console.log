@@ -1,0 +1,41 @@
+Drex model: drex-v2.0 | LLM: openai/gemini-3.5-flash | mock=False
+theta=0.5 tau=0.9 | 3 contracts | 32 chunks
+  [drex] 3 contracts in 6.7s
+  [llm] 3 contracts in 56.1s
+  [cascade] FAILED HEMISPHERX - Sales, Marketing, Distribution, and Supply Agre: LLM failed for HEMISPHERX - Sales, Marketing, Distribution, and Supply Agreement: HTTP 429: [{
+  "error": {
+    "code": 
+  [cascade] FAILED VIVINT SOLAR, INC. - NON-COMPETITION AGREEMENT: LLM failed for VIVINT SOLAR, INC. - NON-COMPETITION AGREEMENT: HTTP 429: [{
+  "error": {
+    "code": 429,
+    "message":
+  [cascade] FAILED Quaker Chemical Corporation - NON COMPETITION AND NON SOLICI: LLM failed for Quaker Chemical Corporation - NON COMPETITION AND NON SOLICITATION AGREEMENT: HTTP 429: [{
+  "error": {
+ 
+  [cascade] 3 contracts in 64.9s
+
+metric                        B Stego (Drex only)         A frontier LLM              C Drex-first cascade        
+accuracy                      0.9000                      0.9333                      0.0000                      
+macro_f1                      0.4500                      0.5500                      0.0000                      
+micro_f1                      0.7692                      0.8571                      0.0000                      
+evidence_hit@1                1.0000                      1.0000                      -                           
+evidence_hit@3                1.0000                      1.0000                      -                           
+brier                         0.0886                      -                           -                           
+ece                           0.1045                      -                           -                           
+selective_acc@80              0.9375                      -                           -                           
+selective_acc@90              0.9074                      -                           -                           
+selective_acc@100             0.9000                      -                           -                           
+acc_when_conf>=0.93           0.9333                      -                           -                           
+latency_p50_ms                6685.2437                   53082.4070                  -                           
+latency_p95_ms                6685.2437                   53082.4070                  -                           
+cost_per_contract_usd         0.0016                      0.0000                      0.0016                      
+llm_calls                     0                           3                           3                           
+drex_decisions_per_contract   229.3333                    -                           -                           
+share_decided_by_drex         -                           -                           1.0000                      
+failed_contracts              0                           0                           3                           
+
+GO / NO-GO
+  Drex probabilities non-trivial (std 0.352 > 0.15): PASS
+  Uncertainty tracks errors (conf right 0.95 vs wrong 0.86): PASS
+  Drex-only macro-F1 within 0.15 of LLM (gap +0.100): PASS  -> if FAIL, lead with the cascade (C), not Drex-only (B)
+  Evidence mapping: check evidence_hit@3 above; NDI page mapping is checked in the demo pipeline.

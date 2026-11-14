@@ -1,0 +1,8 @@
+{
+  "theta": 0.48,
+  "tau": 0.9178,
+  "model": "drex-v2.0",
+  "n_calib": 20,
+  "target_auto_accuracy": 0.95,
+  "frozen_at": "Sat Nov 14 10:37:35 2026"
+}
