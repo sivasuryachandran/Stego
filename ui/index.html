@@ -384,6 +384,7 @@ pre.cmd{background:#111;color:#fff;padding:12px 14px;border-radius:8px;font:500 
     <span class="pill"><span class="dot"></span><span id="model">Drex</span></span>
     <button class="btn sm" id="demoBtn" title="Hide the sample/mock banners for a clean demo (needs live Drex and real results)">Demo mode: off</button>
   </div>
+  <select id="tplsel" title="Contract type: Auto detects it with Drex" style="margin-right:6px"><option value="auto">Type: auto</option><option value="commercial">Commercial (CUAD 20)</option><option value="lease">Lease</option><option value="loan">Loan</option><option value="health_insurance">Health insurance</option></select>
   <button class="btn green sm" id="upload">⬆ Upload contract</button>
 </header>
 <div class="strip"><span>DETERMINISTIC CLAUSE TRIAGE BAY // DREX DECIDES, PLAIN CODE AGGREGATES // MIND THE PLATES</span><span class="sticker" id="runtime">SAMPLE</span></div>
@@ -414,6 +415,7 @@ async function load() {
   const st = await tryJSON("/api/state");
   if (st) { base.server = st; base.liveLedger = st.ledger; base.live = st.contracts; base.decisions = st.decisions || {};
     base.contracts = [...st.contracts, ...base.contracts]; base.categories = base.categories || st.categories;
+    (st.contracts || []).forEach(c => (c.urgent || []).forEach(n => URGENT.add(n)));
     if (base.sample) { base.theta = st.theta; base.tau = st.tau; } }
   return base;
 }
@@ -551,7 +553,7 @@ function upload(file, parent) {
   const finish = () => { finished = true; clearInterval(poll); ui.close(); };
   const cancel = () => { if (finished) return; xhr.abort(); fetch("/api/cancel/" + job, { method: "POST" }).catch(() => {}); finish(); toast("Dig cancelled."); };
   xhr.open("POST", "/api/analyze");
-  xhr.setRequestHeader("X-Filename", encodeURIComponent(file.name)); xhr.setRequestHeader("X-Job", job); if (parent) xhr.setRequestHeader("X-Parent", parent);
+  xhr.setRequestHeader("X-Filename", encodeURIComponent(file.name)); xhr.setRequestHeader("X-Job", job); if (parent) xhr.setRequestHeader("X-Parent", parent); xhr.setRequestHeader("X-Template", (document.getElementById("tplsel") || {}).value || "auto");
   xhr.upload.onprogress = e => { if (e.lengthComputable) ui.set(e.loaded / e.total * 10, `Uploading ${(e.loaded / 1e6).toFixed(1)} of ${(e.total / 1e6).toFixed(1)} MB`); };
   xhr.upload.onload = () => { ui.set(10, "Upload done. Drex takes over…");
     poll = setInterval(async () => { try { const p = await (await fetch("/api/progress/" + job)).json(); if (p && p.pct != null) ui.set(p.pct, p.detail); } catch (e) { /* keep polling */ } }, 350); };
@@ -745,28 +747,30 @@ function landing() {
 /* ---------- workspace ---------- */
 function workspace() {
   const ct = D.contracts[state.ci];
+  const cats = ct ? (ct.categories || D.categories) : D.categories;
   if (!ct) { $("#view").innerHTML = `<div class="card">No fossils here yet. Upload a contract and Drex will start digging.</div>`; return; }
   const q = { r: [], a: [], u: [], g: [] };
-  D.categories.forEach(c => q[queue(c, ct.clauses[c].p)].push(c));
+  cats.forEach(c => q[queue(c, ct.clauses[c].p)].push(c));
   q.r.sort((a, b) => ct.clauses[b].p - ct.clauses[a].p); q.a.sort((a, b) => ct.clauses[b].p - ct.clauses[a].p);
   q.u.sort((a, b) => conf(ct.clauses[a].p) - conf(ct.clauses[b].p));
   const flagged = [...q.r, ...q.a, ...q.u];
-  if (!state.sel || !ct.clauses[state.sel]) state.sel = flagged[0] || D.categories[0];
+  if (!state.sel || !ct.clauses[state.sel]) state.sel = flagged[0] || cats[0];
   const cl = ct.clauses[state.sel], ev = cl.evidence[0], qk = queue(state.sel, cl.p);
   const dec = ct.live ? ((D.decisions || {})[ct.id] || {})[state.sel] : null;   // the server ledger
   const item = c => { const x = ct.clauses[c], k = queue(c, x.p);
     return `<button class="q ${k} ${c === state.sel ? "sel" : ""}" data-c="${esc(c)}"><div class="row"><span>${esc(c)}</span><span class="badge">${loc(x)}</span></div>
       <div class="meter"><i style="width:${x.p * 100}%"></i></div><div class="m"><span>${k === "u" ? (x.p < D.theta ? "LIKELY ABSENT" : "UNCERTAIN") : k === "r" ? "URGENT (POLICY)" : "FOUND - CONFIRM"}</span><span>p=${x.p.toFixed(2)}</span></div></button>`; };
   const nums = ledgerNums();
-  const segs = n => `<div class="seg">${Array.from({ length: 12 }, (_, i) => `<i style="${i < Math.round(n / D.categories.length * 12) ? "background:var(--ink)" : ""}"></i>`).join("")}</div>`;
+  const segs = n => `<div class="seg">${Array.from({ length: 12 }, (_, i) => `<i style="${i < Math.round(n / cats.length * 12) ? "background:var(--ink)" : ""}"></i>`).join("")}</div>`;
   $("#view").innerHTML = `
   <div class="card studs" style="margin-bottom:24px">${studs(4)}<div style="display:flex;justify-content:space-between;gap:20px;flex-wrap:wrap;align-items:center">
-    <div><div class="lab">${ct.pages ? ct.pages + " pages · " : ""}${D.categories.length} clause questions</div>
+    <div><div class="lab">${ct.pages ? ct.pages + " pages · " : ""}${cats.length} clause questions</div>
       <select id="csel" style="margin-top:6px;max-width:100%">${D.contracts.map((c, i) => `<option value="${i}" ${i === state.ci ? "selected" : ""}>${esc(c.title)}${c.version > 1 ? " (v" + c.version + ")" : ""}</option>`).join("")}</select>
       ${ct.live ? `<label class="btn sm" style="cursor:pointer;margin-left:8px" title="Upload a revised version: unchanged chunks are answered from the warm cache">Re-upload as v2<input id="v2file" type="file" accept=".pdf,.txt" hidden></label>` : ""}</div>
     <div style="display:flex;gap:12px;flex-wrap:wrap">
       <div class="card" style="margin:0;padding:8px 14px"><div class="lab">Drex decisions</div><div class="metric" style="font-size:24px">${nums.dec.toLocaleString()}</div></div>
       <div class="card" style="margin:0;padding:8px 14px"><div class="lab">Reasoning-LLM calls</div><div class="metric" style="font-size:24px">0</div></div>
+      ${ct.live && ct.template ? `<div class="card" style="margin:0;padding:8px 14px"><div class="lab">TEMPLATE</div><div class="metric" style="font-size:20px">${esc(ct.template_label)}</div><div class="lab" style="text-transform:none">${ct.benchmarked ? "benchmarked on CUAD" : "<b>NOT BENCHMARKED</b>: no gold labels"}${ct.template_detected ? "<br>detected: " + Object.entries(ct.template_detected).map(([k, v]) => k.replace("_", " ") + " " + v.toFixed(2)).join(" · ") : ""}</div></div>` : ""}
       ${(() => { const c = ct.cache; if (!c) return ""; const ap = c.requests_approx || 0, hit = c.requests_cached + ap, n = hit + c.requests_sent; if (!hit && !c.label) return "";
         return `<div class="card" style="margin:0;padding:8px 14px;background:var(--yellow)"><div class="lab">WARM CACHE${ct.version > 1 ? " · v" + ct.version : ""}</div><div class="metric" style="font-size:24px">${hit} of ${n} Drex requests reused</div><div class="lab" style="text-transform:none">${c.requests_cached} exact · ${ap} similar text${c.approx_min_sim ? " (at least " + Math.round(c.approx_min_sim * 100) + "% similar)" : ""} · ${c.requests_sent} sent to Drex${c.chunks_total ? "<br>" + c.chunks_reused + " of " + c.chunks_total + " chunks identical to the previous version" : ""}${c.parent_ms ? "<br>" + sec(ct.ms) + " vs " + sec(c.parent_ms) + " for the previous version (cold)" : ""}${ap ? "<br>Similar-text answers are reused, not re-asked, so they can differ from a fresh Drex answer." : ""}</div></div>`; })()}
       <div class="card" style="margin:0;padding:8px 14px"><div class="lab">Time</div><div class="metric" style="font-size:24px">${sec(ct.ms)}</div></div>
@@ -800,10 +804,10 @@ function workspace() {
           <button class="btn ${dec?.decision === "not_present" ? "dark" : ""}" data-d="not_present" ${ct.live ? "" : "disabled"}>Not present</button>
           <button class="btn ${dec?.decision === "escalated" ? "red" : ""}" data-d="escalated" ${ct.live ? "" : "disabled"}>Escalate</button></div>
         <div class="lab" style="margin-top:10px;text-transform:none;font-size:12px">${dec ? `Recorded: <b>${DEC_LABEL[dec.decision]}</b> by ${esc(dec.reviewer)} at ${esc(dec.at.replace("T", " ").replace("+00:00", " UTC"))}` : ct.live ? "Not decided yet. Stego routes; a person decides." : "Upload a contract to record decisions: sample contracts have no ledger."}</div></div>
-    <div class="card studs ldg">${studs(4)}<div class="ldg-h"><h3>Clause board ledger</h3><span class="lab">${D.categories.length} clauses · click to inspect</span></div>
-      <div class="lab" style="margin:2px 0 8px;text-transform:none;font-size:12px"><b>${q.r.length + q.a.length + q.u.length} of ${D.categories.length}</b> clauses need a human look · ${D.categories.filter(c => ct.clauses[c].p >= D.theta).length} lean present${D.server && !D.server.thresholds_frozen ? ` · τ=${(+D.tau).toFixed(2)} is a default, not calibrated, so low-p clauses can land in Human review. Run calib on real data to set it.` : ""}</div>
+    <div class="card studs ldg">${studs(4)}<div class="ldg-h"><h3>Clause board ledger</h3><span class="lab">${cats.length} clauses · click to inspect</span></div>
+      <div class="lab" style="margin:2px 0 8px;text-transform:none;font-size:12px"><b>${q.r.length + q.a.length + q.u.length} of ${cats.length}</b> clauses need a human look · ${cats.filter(c => ct.clauses[c].p >= D.theta).length} lean present${D.server && !D.server.thresholds_frozen ? ` · τ=${(+D.tau).toFixed(2)} is a default, not calibrated, so low-p clauses can land in Human review. Run calib on real data to set it.` : ""}</div>
       <div class="dist" title="Share of clauses per queue">${["r", "a", "u", "g"].map(k => q[k].length ? `<i class="${k}" style="flex:${q[k].length}"></i>` : "").join("")}</div>
-      <div class="tabs">${[["all", "All", D.categories.length], ["r", "Urgent", q.r.length], ["a", "Found", q.a.length], ["u", "Human", q.u.length], ["g", "Cleared", q.g.length]].map(([k, t, n]) => `<button class="tab ${(state.lf || "all") === k ? "on" : ""}" data-lf="${k}">${t}<b>${n}</b></button>`).join("")}</div>
+      <div class="tabs">${[["all", "All", cats.length], ["r", "Urgent", q.r.length], ["a", "Found", q.a.length], ["u", "Human", q.u.length], ["g", "Cleared", q.g.length]].map(([k, t, n]) => `<button class="tab ${(state.lf || "all") === k ? "on" : ""}" data-lf="${k}">${t}<b>${n}</b></button>`).join("")}</div>
       <div class="lgrid">${(((state.lf || "all") === "all") ? [...q.r, ...q.a, ...q.u, ...q.g] : q[state.lf]).map(c => { const x = ct.clauses[c], k = queue(c, x.p);
         return `<button class="lt ${k} ${c === state.sel ? "sel" : ""}" data-c="${esc(c)}"><span class="lt-n">${esc(c)}</span><span class="lt-p">${loc(x).replace("Page ", "p.").replace("Chunk ", "c.")}</span><span class="lt-m"><i style="width:${x.p * 100}%"></i></span><span class="lt-v">${x.p.toFixed(2)}</span></button>`; }).join("") || '<div class="lab">None in this queue</div>'}</div>
       <div class="lab" style="margin-top:8px">Red = urgent (policy flag) · amber = found, confirm it · dashed grey = below τ, goes to a human · green = auto-cleared</div></div>
@@ -823,7 +827,7 @@ function workspace() {
 /* ---------- portfolio ---------- */
 function portfolio() {
   const f = state.filter, cats = D.categories;
-  const hits = D.contracts.map((c, i) => [c, i]).filter(([c]) => [...f].every(k => c.clauses[k].p >= D.theta));
+  const hits = D.contracts.map((c, i) => [c, i]).filter(([c]) => !c.categories && [...f].every(k => c.clauses[k].p >= D.theta));
   const nRev = c => cats.filter(k => ["r", "a"].includes(queue(k, c.clauses[k].p))).length;
   const nHum = c => cats.filter(k => queue(k, c.clauses[k].p) === "u").length;
   hits.sort((a, b) => nHum(b[0]) + nRev(b[0]) - nHum(a[0]) - nRev(a[0]));
@@ -833,7 +837,7 @@ function portfolio() {
   <div class="card studs" style="background:#f0edec">${studs(5)}
     <span class="badge">Portfolio engine // ${D.contracts.length} contracts</span>
     <h1 style="margin:12px 0 4px;font-size:44px">Portfolio clause search</h1>
-    <div class="grid g4" style="margin:16px 0">${(() => { const n = D.contracts.length, tot = n * cats.length, unc = D.contracts.reduce((a, c) => a + nHum(c), 0);
+    <div class="grid g4" style="margin:16px 0">${(() => { const PC = D.contracts.filter(c => !c.categories), n = PC.length, tot = n * cats.length, unc = PC.reduce((a, c) => a + nHum(c), 0);
       return [["Contracts", n], ["Clauses triaged", tot.toLocaleString()], ["Uploaded live", (D.live || []).length], ["Sent to human", tot ? (unc / tot * 100).toFixed(1) + "%" : "–"]].map(([l, v]) => `<div class="card" style="margin:0;padding:10px 14px"><div class="lab">${l}</div><div class="metric" style="font-size:26px">${v}</div></div>`).join(""); })()}</div>
     <p style="margin:0 0 20px;color:var(--mut);font-weight:500">Pick clauses. Shows contracts where every picked clause is present or under review (all ${D.sample ? "sample" : "report-set"} contracts).</p>
     <div class="card" style="margin:0"><div class="lab" style="margin-bottom:10px">Filter by (AND)</div>
@@ -1206,7 +1210,7 @@ function printDoc(ct, q) {
   return `<div class="pd-head"><div class="pd-brand">${logo}<div><div class="pd-word">STEGO</div><div class="pd-tag">Contract triage without the big brain</div></div></div>
       <div class="pd-title"><b>Contract review brief</b><span>${esc(fmt)}</span></div></div>
     <div class="pd-meta">${kv("Contract", esc(ct.title))}${kv("Pages", ct.pages ?? "n/a")}${kv("Source", esc(src))}${kv("Drex model", esc(ct.live && D.server ? D.server.drex_model + (mock ? " (mock)" : "") : (D.drex_model || "n/a")))}
-      ${kv("Thresholds", `θ=${D.theta} · τ=${(+D.tau).toFixed(2)}`)}${kv("Reasoning LLM", "0 calls")}${kv("Clauses checked", D.categories.length)}${kv("Time", sec(ct.ms))}</div>
+      ${kv("Thresholds", `θ=${D.theta} · τ=${(+D.tau).toFixed(2)}`)}${kv("Reasoning LLM", "0 calls")}${kv("Clauses checked", (ct.categories || D.categories).length)}${kv("Time", sec(ct.ms))}</div>
     ${warn ? `<div class="pd-warn">${esc(warn)}</div>` : ""}
     <div class="pd-sum"><div class="r"><b>${q.r.length}</b><span>Urgent (policy)</span></div><div class="a"><b>${q.a.length}</b><span>Found · confirm</span></div><div class="g"><b>${q.g.length}</b><span>Auto-cleared</span></div><div class="u"><b>${q.u.length}</b><span>Human review</span></div></div>
     <div class="pd-read">${pagesList.length ? "Pages to read: " + pagesList.map(p => "p." + p).join(", ") : "No flagged page mapping available."}${ct.pages ? " (of " + ct.pages + ")" : ""}</div>
@@ -1229,15 +1233,16 @@ function printBrief() {
 }
 
 async function sealBrief(ct) {
-  const reviews = {}; D.categories.forEach(c => { const d = state.decisions[ct.title + "|" + c]; if (d) reviews[c] = d === "ok" ? "approved" : "escalated"; });
+  const reviews = {}; (ct.categories || D.categories).forEach(c => { const d = state.decisions[ct.title + "|" + c]; if (d) reviews[c] = d === "ok" ? "approved" : "escalated"; });
   try { SEALS[ct.id] = await postJSON("/api/seal", { id: ct.id, reviews }); toast("Sealed: " + (SEALS[ct.id].verify.valid ? "valid" : "check status")); }
   catch (e) { toast("Seal failed: " + e.message); }
   if (state.tab === "brief") { brief(); const f = $("#fossil"); if (f) f.scrollIntoView({ behavior: "smooth", block: "start" }); }
 }
 function brief() {
   const ct = D.contracts[state.ci]; if (!ct) return;
+  const cats = ct.categories || D.categories;
   const q = { r: [], a: [], u: [], g: [] };
-  D.categories.forEach(c => q[queue(c, ct.clauses[c].p)].push(c));
+  cats.forEach(c => q[queue(c, ct.clauses[c].p)].push(c));
   const byP = (a, b) => ct.clauses[b].p - ct.clauses[a].p; q.r.sort(byP); q.a.sort(byP); q.u.sort(byP);
   const S = SEALS[ct.id], canSeal = !!(ct.live && D.server && D.server.fossil);
   const hr = c => { const d = ct.live ? ((D.decisions || {})[ct.id] || {})[c] : null; return d ? ` <span class="badge ${DEC_CLS[d.decision]}">${DEC_LABEL[d.decision]} · ${esc(d.reviewer)}</span>` : ""; };

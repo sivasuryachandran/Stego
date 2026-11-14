@@ -27,7 +27,7 @@ LIVE = os.path.join(ROOT, "runs", "live")
 BRIEFS = os.path.join(LIVE, "briefs")
 URGENT = {"Uncapped Liability", "Change Of Control", "Liquidated Damages", "Non-Compete"}
 VERIFY_URL = "https://contentcredentials.org/verify"
-RENDER_VERSION = 4  # bump when render_brief changes, so older seals are not falsely flagged as edited
+RENDER_VERSION = 5  # bump when render_brief changes, so older seals are not falsely flagged as edited
 MASCOT = os.path.join(ROOT, "assets", "mascot_firefly.png")  # a Firefly image; its own Content Credentials join the chain
 
 
@@ -82,13 +82,13 @@ def sha(b):
     return hashlib.sha256(b if isinstance(b, bytes) else b.encode()).hexdigest()
 
 
-def queue(cat, p, theta, tau):
+def queue(cat, p, theta, tau, urgent=URGENT):
     conf = p if p >= theta else 1 - p
     if conf < tau:
         return "human"
     if p < theta:
         return "cleared"
-    return "urgent" if cat in URGENT else "review"
+    return "urgent" if cat in urgent else "review"
 
 
 def build_record(contract, drex_model, theta, tau, frozen, reviews=None, ledger_path=None):
@@ -99,8 +99,9 @@ def build_record(contract, drex_model, theta, tau, frozen, reviews=None, ledger_
     rows = [ln for ln in raw.decode().splitlines() if ln.strip()]
     mine = [ln for ln in rows if json.loads(ln).get("contract") == contract["title"]]
     decisions = []
+    urgent = set(contract.get("urgent") or URGENT)
     for cat, c in contract["clauses"].items():
-        q = queue(cat, c["p"], theta, tau)
+        q = queue(cat, c["p"], theta, tau, urgent)
         if q == "cleared":
             continue
         ev = c["evidence"][0] if c["evidence"] else {}
@@ -114,7 +115,8 @@ def build_record(contract, drex_model, theta, tau, frozen, reviews=None, ledger_
             "drex": {"model": drex_model, "mode": "mock" if contract.get("mock") else "live"},
             "thresholds": {"theta": theta, "tau": tau, "frozen_on_calibration_set": frozen},
             "firefly_mascot_ingredient": os.path.exists(MASCOT), "reasoning_llm_calls": 0, "clauses_evaluated": len(contract["clauses"]), "flagged": decisions,
-            "cleared": [k for k, c in contract["clauses"].items() if queue(k, c["p"], theta, tau) == "cleared"],
+            "cleared": [k for k, c in contract["clauses"].items() if queue(k, c["p"], theta, tau, urgent) == "cleared"],
+            "template": contract.get("template", "commercial"), "template_label": contract.get("template_label", "Commercial contract (CUAD 20)"), "benchmarked": contract.get("benchmarked", True),
             "ledger": {"file_sha256": sha(raw), "contract_rows": len(mine), "contract_rows_sha256": sha("\n".join(mine))},
             "sealed_at": datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds")}
 
@@ -174,7 +176,7 @@ def render_brief(rec):
     mode = rec["drex"]["mode"].upper()
     d.rounded_rectangle([W - 470, 84, W - 80, 144], radius=8, fill=Y if mode == "LIVE" else A, outline=INK, width=3)
     d.text((W - 455, 92), f"DREX {mode} · {rec['drex']['model']}", font=f_m, fill=INK)
-    d.text((W - 455, 116), "clause triage, not legal approval", font=f_s, fill=INK)
+    d.text((W - 455, 116), "clause triage, not legal approval" if rec.get("benchmarked", True) else f"{rec.get('template_label', 'template')} · not benchmarked", font=f_s, fill=INK)
     tiles = [("URGENT", sum(1 for x in rec["flagged"] if x["queue"] == "urgent"), R), ("FOUND", sum(1 for x in rec["flagged"] if x["queue"] == "review"), A),
              ("CLEARED", len(rec["cleared"]), G), ("HUMAN", sum(1 for x in rec["flagged"] if x["queue"] == "human"), GR)]
     for i, (lab, n, col) in enumerate(tiles):

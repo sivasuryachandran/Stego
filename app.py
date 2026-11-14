@@ -20,6 +20,7 @@ from stego.appchunk import band_keys, chunk_hash, chunk_text_of, content_chunks,
 from stego.arms import run_drex, run_llm
 from stego.data import Chunk, Contract, chunk_text
 from stego.defs import CUES, DEFINITIONS
+from stego.templates import TEMPLATES, pick_template, template_cues, detect_questions
 from stego.drex import DrexClient
 from stego.ledger import Cache, Ledger
 from stego.llm import LLMClient
@@ -37,6 +38,9 @@ if not config.DREX_API_KEY:
     config.MOCK = True
 LEDGER = Ledger(os.path.join(LIVE, "ledger.jsonl"))
 MAX_BYTES = 40 * 1024 * 1024
+
+
+CUES = {**CUES, **template_cues()}
 
 
 def thresholds():
@@ -225,14 +229,14 @@ def _job_progress(drex, prog, n_pages):
     return {"phase": "drill", "pct": 65 + 30 * k / tot, "detail": f"Drilling into uncertain paragraphs: {k} / {prog['drill_total']}"}
 
 
-async def run_analysis(title, pages, pdf_name, job, parent=None, use_cache=True):
-    task = asyncio.ensure_future(analyze(title, pages, pdf_name, job, parent, use_cache))
+async def run_analysis(title, pages, pdf_name, job, parent=None, use_cache=True, template="auto"):
+    task = asyncio.ensure_future(analyze(title, pages, pdf_name, job, parent, use_cache, template))
     if job is not None:
         job["loop"], job["task"] = asyncio.get_running_loop(), task
     return await task
 
 
-async def analyze(title, pages, pdf_name, job=None, parent=None, use_cache=True):
+async def analyze(title, pages, pdf_name, job=None, parent=None, use_cache=True, template="auto"):
     theta, tau, _ = thresholds()
     ledger_start = LEDGER.f.tell()
     cache = ApproxCache(os.path.join(LIVE, "cache.sqlite"), enabled=use_cache)   # warm cache: exact hash of (model, chunk text, questions), then near-duplicate chunks
@@ -244,7 +248,18 @@ async def analyze(title, pages, pdf_name, job=None, parent=None, use_cache=True)
         pp = os.path.join(LIVE, "contracts", re.sub(r"[^a-z0-9]", "", parent.lower()) + ".json")
         if os.path.exists(pp):
             parent_rec = json.load(open(pp))
-    cats = config.CATEGORIES
+    detected = None
+    if template == "auto" and parent_rec:
+        template = parent_rec.get("template", "commercial")      # a v2 keeps its parent's template
+    if template == "auto":
+        qs = detect_questions()
+        firsts = await asyncio.gather(*[drex.decide(c.text, qs, arm="live-type", contract=title, unit=f"type{c.idx}") for c in ct.chunks[:3]])
+        detected = {k[2:]: round(max(f.get(k, 0.0) for f in firsts), 4) for k in qs}
+        template = pick_template(detected)
+    elif template not in TEMPLATES:
+        template = "commercial"
+    T = TEMPLATES[template]
+    cats, defs = T["categories"], T["definitions"]
     prog = {}
 
     async def ticker():
@@ -256,7 +271,7 @@ async def analyze(title, pages, pdf_name, job=None, parent=None, use_cache=True)
 
     tk = asyncio.ensure_future(ticker())
     try:
-        out, ms = await run_drex(ct, cats, DEFINITIONS, drex, arm="live", progress=prog)
+        out, ms = await run_drex(ct, cats, defs, drex, arm="live", progress=prog)
     finally:
         tk.cancel()
         await drex.close()
@@ -269,6 +284,8 @@ async def analyze(title, pages, pdf_name, job=None, parent=None, use_cache=True)
     cid = uuid.uuid4().hex[:10]
     rec = {"id": cid, "title": title, "pages": len(pages), "ms": round(ms), "pdf": f"/runs/live/uploads/{pdf_name}" if pdf_name else None,
            "live": True, "drex_decisions": drex.decisions, "analyzed_at": time.time(), "mock": config.MOCK, "clauses": clauses,
+           "template": template, "template_label": T["label"], "benchmarked": T["benchmarked"], "template_detected": detected,
+           "categories": cats, "urgent": T["urgent"],
            "chunk_hashes": [chunk_hash(c.text) for c in ct.chunks], "version": 1, "parent_id": None,
            "cache": {"requests_cached": cache.hits, "requests_approx": cache.approx_hits, "requests_sent": cache.misses,
                      "approx_min_sim": min(cache.sims) if cache.sims else None, "enabled": use_cache}}
@@ -483,9 +500,9 @@ class H(BaseHTTPRequestHandler):
             reviewer = str(req.get("reviewer", "")).strip()[:60]
             if not cid or not os.path.exists(cpath):
                 return self.send_json({"error": "decisions are recorded for uploaded contracts only"}, 404)
-            if req.get("clause") not in config.CATEGORIES or req.get("decision") not in DECISION_KINDS or not reviewer:
-                return self.send_json({"error": "clause, decision and a reviewer name are required"}, 422)
             c = json.load(open(cpath))
+            if req.get("clause") not in (c.get("categories") or config.CATEGORIES) or req.get("decision") not in DECISION_KINDS or not reviewer:
+                return self.send_json({"error": "clause, decision and a reviewer name are required"}, 422)
             cl = c["clauses"][req["clause"]]
             ev = cl["evidence"][0] if cl["evidence"] else {}
             row = {"ts": time.time(), "at": datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds"),
@@ -604,9 +621,10 @@ class H(BaseHTTPRequestHandler):
                 open(os.path.join(LIVE, "uploads", pdf_name), "wb").write(data)
             parent = re.sub(r"[^a-z0-9]", "", self.headers.get("X-Parent", "").lower())[:16] or None
             use_cache = self.headers.get("X-Cache", "on").lower() != "off"
+            template = re.sub(r"[^a-z_]", "", self.headers.get("X-Template", "auto").lower()) or "auto"
             if name.lower().endswith(".txt") and len(pages) > 1 and "\f" not in data.decode("utf-8", errors="replace"):
                 pages = ["\n".join(pages)]   # plain text: let the content-defined chunker cut it, not the fixed-size one
-            rec = asyncio.run(run_analysis(os.path.splitext(name)[0], pages, pdf_name, job, parent, use_cache))
+            rec = asyncio.run(run_analysis(os.path.splitext(name)[0], pages, pdf_name, job, parent, use_cache, template))
             self.send_json(rec)
         except asyncio.CancelledError:
             if job is not None:
