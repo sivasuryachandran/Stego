@@ -16,7 +16,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import unquote, urlparse
 
 from stego import config
-from stego.appchunk import chunk_hash, chunk_text_of, content_chunks
+from stego.appchunk import band_keys, chunk_hash, chunk_text_of, content_chunks, estimate, minhash
 from stego.arms import run_drex, run_llm
 from stego.data import Chunk, Contract, chunk_text
 from stego.defs import CUES, DEFINITIONS
@@ -85,19 +85,79 @@ def build_contract_content(title, pages):
     return ct
 
 
-class CountingCache(Cache):
-    """Counts answers served from the warm cache vs sent to Drex."""
-    def __init__(self, *a, **kw):
+class ApproxCache(Cache):
+    """Warm cache for the app path. Tier 1: exact (hash of model, chunk text, questions). Tier 2: a chunk that is at
+    least APPROX_SIM similar (MinHash over normalised 5-word shingles; numbers ignored) to a cached chunk, asked with the
+    same questions and model, reuses that chunk's answers. Tier 2 can differ from a fresh Drex answer, so it is counted
+    and reported separately."""
+    APPROX_SIM, MIN_STATE = 0.90, 600
+
+    def __init__(self, *a, approx=True, **kw):
         super().__init__(*a, **kw)
-        self.hits = self.misses = 0
+        self.hits = self.misses = self.approx_hits = 0
+        self.sims = []
+        self.approx = approx and self.enabled
+        self._pay, self._sig, self._idx = {}, {}, {}
+        if self.approx:
+            self.db.execute("CREATE TABLE IF NOT EXISTS s (k TEXT PRIMARY KEY, qh TEXT, sig TEXT)")
+            for k, qh, sig in self.db.execute("SELECT k, qh, sig FROM s").fetchall():
+                self._index(k, qh, json.loads(sig))
+
+    @staticmethod
+    def _qh(payload):
+        return Cache.key("q", payload["model"], payload["questions"])
+
+    def _index(self, k, qh, sig):
+        self._sig[k] = (qh, sig)
+        for band in band_keys(sig):
+            self._idx.setdefault((qh,) + band, []).append(k)
+
+    def key(self, *parts):
+        k = Cache.key(*parts)
+        if parts and parts[0] == "drex" and isinstance(parts[1], dict):
+            self._pay[k] = parts[1]
+        return k
 
     def get(self, k):
-        v = super().get(k)
-        if v is None:
-            self.misses += 1
-        else:
+        v = Cache.get(self, k)
+        p = self._pay.get(k)
+        if v is not None:
             self.hits += 1
-        return v
+            self._pay.pop(k, None)
+            return v
+        if self.approx and p and len(p["state"]) >= self.MIN_STATE:
+            sig = minhash(p["state"])
+            if sig:
+                qh, best, bk = self._qh(p), 0.0, None
+                for band in band_keys(sig):
+                    for ck in self._idx.get((qh,) + band, ()):
+                        e = estimate(sig, self._sig[ck][1])
+                        if e > best:
+                            best, bk = e, ck
+                if bk and best >= self.APPROX_SIM:
+                    hit = Cache.get(self, bk)
+                    if hit is not None:
+                        self.approx_hits += 1
+                        self.sims.append(round(best, 3))
+                        self._pay.pop(k, None)
+                        return hit
+        self.misses += 1
+        return None
+
+    def put(self, k, v):
+        super().put(k, v)
+        p = self._pay.pop(k, None)
+        if self.approx and p and len(p["state"]) >= self.MIN_STATE:
+            sig = minhash(p["state"])
+            if sig:
+                qh = self._qh(p)
+                with _cache_lock:
+                    self.db.execute("INSERT OR REPLACE INTO s VALUES (?,?,?)", (k, qh, json.dumps(sig)))
+                    self.db.commit()
+                self._index(k, qh, sig)
+
+
+_cache_lock = threading.Lock()
 
 
 def evidence_page(ct, idx, category):
@@ -165,17 +225,17 @@ def _job_progress(drex, prog, n_pages):
     return {"phase": "drill", "pct": 65 + 30 * k / tot, "detail": f"Drilling into uncertain paragraphs: {k} / {prog['drill_total']}"}
 
 
-async def run_analysis(title, pages, pdf_name, job, parent=None):
-    task = asyncio.ensure_future(analyze(title, pages, pdf_name, job, parent))
+async def run_analysis(title, pages, pdf_name, job, parent=None, use_cache=True):
+    task = asyncio.ensure_future(analyze(title, pages, pdf_name, job, parent, use_cache))
     if job is not None:
         job["loop"], job["task"] = asyncio.get_running_loop(), task
     return await task
 
 
-async def analyze(title, pages, pdf_name, job=None, parent=None):
+async def analyze(title, pages, pdf_name, job=None, parent=None, use_cache=True):
     theta, tau, _ = thresholds()
     ledger_start = LEDGER.f.tell()
-    cache = CountingCache(os.path.join(LIVE, "cache.sqlite"), enabled=True)   # warm content-hash cache: key = hash(model, chunk text, questions)
+    cache = ApproxCache(os.path.join(LIVE, "cache.sqlite"), enabled=use_cache)   # warm cache: exact hash of (model, chunk text, questions), then near-duplicate chunks
     drex = DrexClient(LEDGER, cache)
     await drex.resolve_model()
     ct = build_contract_content(title, pages)
@@ -210,7 +270,8 @@ async def analyze(title, pages, pdf_name, job=None, parent=None):
     rec = {"id": cid, "title": title, "pages": len(pages), "ms": round(ms), "pdf": f"/runs/live/uploads/{pdf_name}" if pdf_name else None,
            "live": True, "drex_decisions": drex.decisions, "analyzed_at": time.time(), "mock": config.MOCK, "clauses": clauses,
            "chunk_hashes": [chunk_hash(c.text) for c in ct.chunks], "version": 1, "parent_id": None,
-           "cache": {"requests_cached": cache.hits, "requests_sent": cache.misses}}
+           "cache": {"requests_cached": cache.hits, "requests_approx": cache.approx_hits, "requests_sent": cache.misses,
+                     "approx_min_sim": min(cache.sims) if cache.sims else None, "enabled": use_cache}}
     if parent_rec:
         old = set(parent_rec.get("chunk_hashes") or [])
         reused = sum(1 for h in rec["chunk_hashes"] if h in old)
@@ -542,7 +603,10 @@ class H(BaseHTTPRequestHandler):
                 pdf_name = uuid.uuid4().hex[:8] + ".pdf"
                 open(os.path.join(LIVE, "uploads", pdf_name), "wb").write(data)
             parent = re.sub(r"[^a-z0-9]", "", self.headers.get("X-Parent", "").lower())[:16] or None
-            rec = asyncio.run(run_analysis(os.path.splitext(name)[0], pages, pdf_name, job, parent))
+            use_cache = self.headers.get("X-Cache", "on").lower() != "off"
+            if name.lower().endswith(".txt") and len(pages) > 1 and "\f" not in data.decode("utf-8", errors="replace"):
+                pages = ["\n".join(pages)]   # plain text: let the content-defined chunker cut it, not the fixed-size one
+            rec = asyncio.run(run_analysis(os.path.splitext(name)[0], pages, pdf_name, job, parent, use_cache))
             self.send_json(rec)
         except asyncio.CancelledError:
             if job is not None:
