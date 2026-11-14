@@ -44,3 +44,31 @@ def chunk_text_of(lines):
 
 def chunk_hash(text):
     return hashlib.sha256(text.encode()).hexdigest()[:16]
+
+
+# ---- approximate matching (app path only): MinHash over normalised 5-word shingles ----
+_P = (1 << 61) - 1
+_N_HASH, _BANDS = 64, 16          # 16 bands x 4 rows
+_COEF = [((i * 2654435761 + 12345) | 1, (i * 40503 + 977) % _P) for i in range(_N_HASH)]
+
+
+def norm_tokens(text):
+    """Lowercase words; every number becomes '0' so dates, amounts and day counts do not break a match."""
+    return ["0" if t[0].isdigit() else t for t in re.findall(r"[a-z]+|\d+", text.lower())]
+
+
+def minhash(text, k=5):
+    toks = norm_tokens(text)
+    if len(toks) < k:
+        return None
+    hs = {int(hashlib.md5(" ".join(toks[i:i + k]).encode()).hexdigest()[:12], 16) for i in range(len(toks) - k + 1)}
+    return [min((a * h + b) % _P for h in hs) for a, b in _COEF]
+
+
+def band_keys(sig):
+    r = _N_HASH // _BANDS
+    return [(i, hash(tuple(sig[i * r:(i + 1) * r]))) for i in range(_BANDS)]
+
+
+def estimate(a, b):
+    return sum(1 for x, y in zip(a, b) if x == y) / _N_HASH
