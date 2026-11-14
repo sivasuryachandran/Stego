@@ -2,7 +2,7 @@
   "theta": 0.48,
   "tau": 0.9178,
   "drex_model": "drex-v2.0",
-  "llm_model": "gemini-3.5-flash",
+  "llm_model": "Qwen/Qwen3.8-27B",
   "categories": [
     "Anti-Assignment",
     "License Grant",
@@ -265,6 +265,152 @@
       "majority_present": [
         "Anti-Assignment"
       ]
+    },
+    {
+      "arm": "A open 27B LLM (Qwen3.8-27B via DeepInfra)",
+      "contracts": 82,
+      "failed_contracts": 3,
+      "decisions_scored": 1640,
+      "accuracy": 0.8573170731707317,
+      "macro_f1": 0.7380243548067307,
+      "micro_precision": 0.7352941176470589,
+      "micro_recall": 0.7911392405063291,
+      "micro_f1": 0.7621951219512195,
+      "evidence_hit@1": 0.9013333333333333,
+      "evidence_hit@3": 0.984,
+      "latency_p50_ms": 137711.73174999421,
+      "latency_p95_ms": 880248.9172499627,
+      "per_category_f1": {
+        "Anti-Assignment": 0.9482758620689655,
+        "License Grant": 0.8571428571428572,
+        "Cap On Liability": 0.625,
+        "Audit Rights": 0.8771929824561403,
+        "Revenue/Profit Sharing": 0.7692307692307693,
+        "Exclusivity": 0.8627450980392156,
+        "Insurance": 0.8799999999999999,
+        "Minimum Commitment": 0.5454545454545454,
+        "Termination For Convenience": 0.8070175438596492,
+        "Post-Termination Services": 0.5070422535211268,
+        "Renewal Term": 0.8837209302325582,
+        "Change Of Control": 0.6666666666666666,
+        "Covenant Not To Sue": 0.8000000000000002,
+        "Non-Compete": 0.7692307692307692,
+        "Ip Ownership Assignment": 0.7368421052631579,
+        "Non-Transferable License": 0.6666666666666667,
+        "Rofr/Rofo/Rofn": 0.7826086956521738,
+        "Liquidated Damages": 0.6363636363636365,
+        "Uncapped Liability": 0.5142857142857142,
+        "Warranty Duration": 0.625
+      },
+      "drex_input_tokens": 0,
+      "llm_input_tokens": 761378,
+      "llm_output_tokens": 539214,
+      "cost_total_usd": 1.5003106,
+      "cost_per_contract_usd": 0.018296470731707315,
+      "llm_calls": 82
+    },
+    {
+      "arm": "C Drex-first cascade",
+      "contracts": 82,
+      "failed_contracts": 2,
+      "decisions_scored": 1640,
+      "accuracy": 0.8591463414634146,
+      "macro_f1": 0.7405444316466915,
+      "micro_precision": 0.7314285714285714,
+      "micro_recall": 0.810126582278481,
+      "micro_f1": 0.7687687687687688,
+      "evidence_hit@1": 0.921875,
+      "evidence_hit@3": 0.9869791666666666,
+      "latency_p50_ms": 135531.2996864959,
+      "latency_p95_ms": 884554.9961680081,
+      "per_category_f1": {
+        "Anti-Assignment": 0.9482758620689655,
+        "License Grant": 0.898876404494382,
+        "Cap On Liability": 0.6206896551724138,
+        "Audit Rights": 0.8771929824561403,
+        "Revenue/Profit Sharing": 0.8148148148148148,
+        "Exclusivity": 0.888888888888889,
+        "Insurance": 0.8979591836734695,
+        "Minimum Commitment": 0.6285714285714286,
+        "Termination For Convenience": 0.8214285714285714,
+        "Post-Termination Services": 0.5217391304347826,
+        "Renewal Term": 0.8636363636363636,
+        "Change Of Control": 0.7272727272727272,
+        "Covenant Not To Sue": 0.8749999999999999,
+        "Non-Compete": 0.7111111111111111,
+        "Ip Ownership Assignment": 0.7500000000000001,
+        "Non-Transferable License": 0.6296296296296295,
+        "Rofr/Rofo/Rofn": 0.8461538461538461,
+        "Liquidated Damages": 0.6086956521739131,
+        "Uncapped Liability": 0.38095238095238093,
+        "Warranty Duration": 0.5
+      },
+      "brier": 0.0367024968814433,
+      "ece": 0.022393728522336773,
+      "reliability": [
+        {
+          "bin": "0.0-0.1",
+          "n": 930,
+          "mean_p": 0.017808924731182795,
+          "frac_yes": 0.043010752688172046
+        },
+        {
+          "bin": "0.9-1.0",
+          "n": 234,
+          "mean_p": 0.9673991452991453,
+          "frac_yes": 0.9786324786324786
+        }
+      ],
+      "selective_acc@80": 0.9806659505907627,
+      "selective_acc@90": 0.9646946564885496,
+      "selective_acc@100": 0.961340206185567,
+      "acc_when_conf>=0.93": 0.9624664879356568,
+      "n_conf>=0.93": 1119,
+      "drex_input_tokens": 2964637,
+      "llm_input_tokens": 462421,
+      "llm_output_tokens": 502004,
+      "cost_total_usd": 1.5253724199999998,
+      "cost_per_contract_usd": 0.01860210268292683,
+      "llm_calls": 77,
+      "categories_sent_to_llm": 436,
+      "share_decided_by_drex": 0.7341463414634146
     }
-  ]
+  ],
+  "sensitivity": {
+    "label": "NOT the pre-registered result: arms A and B scored only on the contracts where arm A completed",
+    "contracts": 79,
+    "left_out_failed_in_A": [
+      "PhoenixNewMediaLtd_20110421_F-1_EX-10.17_6958322_EX-10.17_Content License Agreement",
+      "GOOSEHEADINSURANCE,INC_04_02_2018-EX-10.6-Franchise Agreement",
+      "SoupmanInc_20150814_8-K_EX-10.1_9230148_EX-10.1_Franchise Agreement1"
+    ],
+    "A": {
+      "macro_f1": 0.7978,
+      "micro_f1": 0.8117,
+      "accuracy": 0.8899
+    },
+    "B": {
+      "macro_f1": 0.7878,
+      "micro_f1": 0.8277,
+      "accuracy": 0.9057
+    }
+  },
+  "sensitivity_C": {
+    "label": "NOT the pre-registered result: arms C and B scored only on the contracts where arm C completed",
+    "contracts": 80,
+    "left_out_failed_in_C": [
+      "TRICITYBANKSHARESCORP_05_15_1998-EX-10-OUTSOURCING AGREEMENT",
+      "GOOSEHEADINSURANCE,INC_04_02_2018-EX-10.6-Franchise Agreement"
+    ],
+    "C": {
+      "macro_f1": 0.7784,
+      "micro_f1": 0.8008,
+      "accuracy": 0.8806
+    },
+    "B": {
+      "macro_f1": 0.7878,
+      "micro_f1": 0.8281,
+      "accuracy": 0.905
+    }
+  }
 }
