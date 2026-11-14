@@ -1,118 +1,99 @@
-# Stego: benchmark harness
+# Stego
 
-> Stego: contract triage without the big brain.
+> Contract triage without the big brain.
 
-Contract clause triage with **zero general-purpose reasoning LLM calls after ingestion**:
-Drex decides, plain code aggregates, the LLM appears only as a baseline and in the cascade arm.
+Stego reads a contract and answers 20 yes/no clause questions (anti-assignment, cap on liability, audit rights, ...) with
+**Drex** (Nace's decision model), then plain code aggregates the answers into a review brief. A person confirms the uncertain
+ones, and the brief is sealed with **C2PA Content Credentials**. The Drex-only path makes **zero general-purpose
+reasoning-LLM calls after ingestion**. An LLM appears only as a benchmark baseline and in the cascade arm.
 
-## What it measures
-- **Data:** official CUAD **test split** (`data/cuad/test.json`, 102 contracts, lawyer-annotated).
-  20 yes/no clause categories (see `stego/config.py`). Each Drex question uses CUAD's **own
-  labeling definition** ("Details: ..."), so the questions match the guidelines the annotators used.
-- **Split (fixed seed 14):** 20 contracts only for picking thresholds, 82 for the report.
-- **Arms:**
-  - **A:** a frontier LLM reads all chunks and returns one JSON per contract.
-  - **B:** Drex only. A section sweep (20 questions per chunk), then a paragraph drill-down for chunks with 0.2 < p < 0.9. Code aggregates: presence = max p, evidence = chunks ranked by p.
-  - **C:** cascade. Drex decides, and only categories with confidence < τ go to the LLM, which sees just Drex's top-4 chunks.
-- **Metrics:** accuracy, macro/micro-F1, per-category F1, evidence hit@1/@3 (gold CUAD span inside the
-  predicted chunk), Brier, ECE + reliability bins, selective accuracy @80/90/100% coverage,
-  "accuracy when confidence ≥ 0.93" (Nace's published calibration claim), p50/p95 wall-clock per contract,
-  $ per contract, LLM calls, Drex decisions per contract. **Failed runs count as wrong on every category.**
-- **Receipts:** `runs/<name>/ledger.jsonl` logs every call: model, unit, latency, tokens, probabilities.
+Hackathon: Drexathon, track **Apex Predator** (hand a frontier-LLM-style task's decisions to Drex and measure speed, cost and accuracy).
+Partner tools used: Nace Drex, DeepInfra (the LLM baseline), Adobe Content Credentials (C2PA) and Firefly (mascot).
 
-Why CUAD text and not NDI text for the benchmark: CUAD's gold spans are character offsets into its own
-text. Running NDI changes the text, so you'd need fuzzy realignment, which adds label noise. NDI is used in the
-live demo pipeline (PDF → sections → page/bbox). Say this on the slide.
+## How it works
+1. **Ingest:** a text PDF or `.txt` is split into chunks (one per page in the app). NDI ingest and scanned PDFs are not wired yet.
+2. **Decide (Drex):** a section sweep asks all 20 questions per chunk. Chunks with 0.2 < p < 0.9 get a paragraph drill-down.
+3. **Aggregate (plain code):** presence = max p over chunks; evidence = chunks ranked by p. Thresholds θ and τ are calibrated, not guessed.
+4. **Triage:** Urgent (a policy list, not ground truth), Found · confirm, Human review (below τ), Auto-cleared. Clauses far below θ read "likely absent".
+5. **Human decides:** a reviewer picks Confirm present / Not present / Escalate. Each decision is appended to `runs/live/decisions.jsonl`.
+6. **Seal:** the brief PNG is signed with Content Credentials. The seal carries the Drex model and mode, probabilities, evidence pages,
+   thresholds, human reviews and a sha256 of the call ledger. It proves who decided from what evidence, not that the decision was right.
 
-## Setup
+Stego routes; a person decides. It never recommends approve or reject: CUAD labels clause presence, not acceptability.
+
+## Install and run
 ```bash
-pip install -r requirements.txt
-# CUAD (official repo): unzip data.zip from github.com/TheAtticusProject/cuad into data/cuad/
-export DREX_API_KEY=nace_sk_...            # DREX_BASE_URL defaults to https://drex.nace.ai
-export DREX_PRICE_PER_M_INPUT=0.06         # set from Nace's pricing page for the model you get
-export LLM_PROVIDER=openai                 # or anthropic
-export LLM_MODEL=<current frontier model>  # write the exact id on the results slide
-export LLM_API_KEY=...
-export LLM_PRICE_PER_M_INPUT=... LLM_PRICE_PER_M_OUTPUT=...
-# reasoning models that reject temperature: export LLM_TEMPERATURE=
+python -m venv .venv && .venv/bin/pip install -r requirements.txt      # Windows: .venv\Scripts\pip
+.venv/bin/python samples/make_sample.py        # invented demo contract -> samples/sample_vendor_agreement.pdf
+.venv/bin/python app.py                        # http://localhost:8000/
 ```
-The Drex model is resolved at startup from `GET /v1/models` (prefers drex-v2.0, then drex-max-v1.1, ...).
-If the hosted path isn't `/v1/systemone`, the client retries `/v1/decisions`, or you can set `DREX_PATH`.
+Upload a PDF, open the clause board, review clauses, then seal the brief. Mock mode is on whenever no Drex key is set.
 
-## Run order (tonight, then freeze)
+### Environment variables (names only; put values in `.env`, which is gitignored)
+| Name | Purpose |
+|---|---|
+| `NACE_API_KEY` (or `DREX_API_KEY`) | Drex. Without it the app and harness run **MOCK** Drex (keyword heuristics) and say so in the UI. |
+| `DREX_BASE_URL`, `DREX_PATH`, `DREX_MODEL` | Optional overrides. The model is resolved from `GET /v1/models` (prefers `drex-v2.0`). |
+| `DREX_PRICE_PER_M_INPUT` | Used for cost per contract. |
+| `LLM_PROVIDER`, `LLM_BASE_URL`, `LLM_MODEL`, `LLM_API_KEY` | The LLM baseline (arms A and C). Any OpenAI-compatible endpoint, or `anthropic`. |
+| `LLM_PRICE_PER_M_INPUT`, `LLM_PRICE_PER_M_OUTPUT`, `LLM_TEMPERATURE`, `LLM_ARM_LABEL` | Cost and labelling for the baseline. |
+| `MOCK=1` | Force the offline mock for the harness. |
+
+Copy `.env.example` to `.env` to start. Never commit `.env`.
+
+## Benchmark protocol
+- **Data:** official CUAD **test split** (`data/cuad/test.json`, 102 contracts, lawyer-annotated, CC BY 4.0, The Atticus Project).
+  Download `data.zip` from github.com/TheAtticusProject/cuad and put `test.json` in `data/cuad/` (not committed).
+- **Questions:** 20 categories (`stego/config.py`), each asked with CUAD's own labelling definition.
+- **Split:** fixed seed 14. **20 calibration contracts** are used only to pick θ and τ; **82 report contracts** are scored.
+- **Frozen thresholds:** θ = 0.48, τ = 0.918, recorded with `frozen_at` in `runs/thresholds.json` before the report run.
+  The repository was created after the run, so the commit history does not prove the order. The timestamps in
+  `runs/latest/ledger.jsonl` (calibration) and `runs/final/ledger.jsonl` (report) do.
+- **Arms:** **A** an LLM reads all chunks and returns JSON; **B** Stego, Drex only; **C** cascade: Drex decides and only low-confidence
+  categories go to the LLM, which sees Drex's top-4 chunks; **M** majority-class baseline.
+- **Metrics:** accuracy, macro/micro-F1, evidence hit@1/@3 (gold CUAD span inside the predicted chunk), Brier, ECE, selective accuracy,
+  p50/p95 latency, cost and LLM calls per contract. Failed runs count as wrong on every category.
+- **Receipts:** `runs/<name>/ledger.jsonl` logs every call (model, unit, latency, tokens, probabilities).
+- **LLM baseline label:** Qwen3.8-27B via DeepInfra, the organizer-provided System 2 model, in thinking mode. It is an open 27B model, **not** a frontier model.
+
 ```bash
-MOCK=1 python run_bench.py gate --limit 3     # offline smoke test, no keys needed
-python run_bench.py gate --limit 3 --out runs/gate     # real go/no-go on 3 contracts, all arms
-python run_bench.py calib                               # picks theta, tau on the 20 calib contracts -> runs/thresholds.json
-git commit -am "freeze thresholds"                      # timestamped proof you didn't tune on the report set
-python run_bench.py bench --no-cache --out runs/final   # final timed run, 82 contracts
+MOCK=1 python run_bench.py gate --limit 3 --out runs/smoke   # offline smoke test, no keys needed
+python run_bench.py gate --limit 3 --out runs/smoke          # real go/no-go on 3 contracts, all arms
+python run_bench.py calib                                    # picks theta and tau on the 20 calibration contracts
+python run_bench.py bench --no-cache --out runs/final        # timed run on the 82 report contracts
 ```
-`--no-cache` matters for the timed run: the cache is there to save money while iterating, not for latency numbers.
+Use `--out` for experiments: the default output is `runs/latest`, which holds the calibration ledger.
 
-## Go / no-go (printed by `gate`)
-- Drex probabilities aren't trivial (std > 0.15)
-- Confidence is higher on correct answers than wrong ones (margin > 0.05)
-- Drex-only macro-F1 is within 0.15 of the LLM. **If this fails, the headline becomes the cascade (C), not Zero (B).**
-  Decide this **before** `bench`, and report all three arms either way.
-
-## Knobs (all in `stego/config.py`; change only before `calib`)
-`CHUNK_CHARS`, `DRILL_LOW/HIGH`, `CASCADE_TOPK_CHUNKS`, `TARGET_AUTO_ACCURACY`, `DREX_MAX_INFLIGHT`,
-`DREX_QUESTIONS_PER_REQ`, `CONTRACT_CONCURRENCY`.
-
-## App (UI + live pipeline)
-```bash
-python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
-.venv/bin/python samples/make_sample.py     # invented demo contract -> samples/sample_vendor_agreement.pdf
-.venv/bin/python app.py                     # http://localhost:8000/
-```
-- Upload a text-based PDF or .txt: pages -> Drex section sweep + drill-down -> plain-code aggregation -> clause board with the PDF opened on the evidence page. One chunk per page.
-- No `DREX_API_KEY` = the harness's MOCK Drex (keyword heuristics). The UI shows a warning banner; those probabilities are not real.
-- Benchmark/receipts screens read `runs/final` (else `runs/latest`, `runs/gate`); otherwise labeled sample data. `?run=runs/gate` picks a run.
-- Uploads land in `runs/live/` (contracts, PDFs, `ledger.jsonl`). NDI ingest and scanned PDFs are not wired yet.
-- "Urgent" is a policy list in `ui/index.html` (`URGENT`), not ground truth.
-
-## The Fossil Record (Adobe Content Credentials)
-Brief page -> **Seal & export brief** signs the rendered brief PNG with C2PA Content Credentials. The seal carries the
-Drex model and mode, probabilities, evidence pages, thresholds, human reviews and a sha256 of `runs/live/ledger.jsonl`.
-It proves who decided from what evidence, not that the decision was right.
-```bash
-.venv/bin/python fossil.py demo           # seal latest upload, verify, tamper one pixel, verify again (fails)
-.venv/bin/python fossil.py verify FILE.png
-```
-- Signing uses a generated **TEST** certificate chain in `keys/` (gitignored). Adobe's verify site (contentcredentials.org/verify)
-  will show an untrusted signer. Production needs a certificate from the C2PA trust list.
-- Adobe's verify page shows standard fields only; the full decision record is shown in the app's Fossil Record panel from the same seal.
-- Mock Drex output is sealed with `mode: mock` and the UI says so. Seals on benchmark/sample contracts are disabled (no ledger).
-- Not built yet: Adobe PDF Embed API viewer (needs a free client ID), Firefly mascot as an ingredient (`assets/`), Express template.
-
-## Drex credentials (live mode)
-Copy `.env.example` to `.env` (gitignored) and set `NACE_API_KEY`. `stego/config.py` loads `.env` (real env vars win) and points at
-`https://console.nace.ai`; the client sends `X-Nace-Client: stego/0.1` and resolves the model from `GET /v1/models`
-(`drex-v2.0` first). With a key present the app and harness run live Drex; without one they fall back to MOCK.
-The LLM baseline (arms A/C, the race's right side) still needs `LLM_PROVIDER`, `LLM_MODEL`, `LLM_API_KEY`.
-
-## Human decisions (Stego routes, a person decides)
-In the Workspace, a reviewer enters a name and picks **Confirm present**, **Not present** or **Escalate** for a clause. Each decision is appended to
-`runs/live/decisions.jsonl` (reviewer, time, Drex probability, evidence page, Drex model). Sealing a brief reads that ledger, so the Content Credentials
-seal records both Drex's call and the human's. Stego never recommends approve or reject: CUAD labels presence, not acceptability. Queues: Urgent (policy flag),
-Found · confirm, Human review (below τ), Auto-cleared. The default τ is not calibrated; run `calib` on real data before quoting a human-workload number.
-
-## Measured results so far (CUAD test split)
-20 calibration contracts set the thresholds, 82 disjoint report contracts are scored (split seed 14). Thresholds θ=0.48, τ=0.918 are recorded with `frozen_at` in
-`runs/thresholds.json`. The git repository was created after the run, so the commit history does not prove the order; the timestamps in `runs/latest/ledger.jsonl`
-(calibration) and `runs/final/ledger.jsonl` (report set) do: the first report call follows `frozen_at`.
-
-| Drex-only arm (B), 82 contracts | |
+## Measured results (CUAD test split, 82 report contracts, from `runs/final/results.json`)
+| Drex-only arm (B) | |
 |---|---|
 | Macro-F1 / micro-F1 | 0.796 / 0.834 |
-| Accuracy | 90.5% (a per-category majority-class baseline gets 73.5% accuracy but macro-F1 0.043) |
+| Accuracy | 90.5% (flattered: most clauses are absent; the majority-class baseline gets 73.5% accuracy but macro-F1 0.043) |
 | Evidence on the right chunk | 94.4% (top 1), 99.5% (top 3) |
 | Calibration | Brier 0.072, ECE 0.031 |
-| Accuracy at confidence ≥ 0.93 | 96.3% over 1,139 of 1,640 decisions (69.5%); Nace's published claim is 97% |
+| Accuracy at confidence ≥ 0.93 | 96.3% over 1,139 of 1,640 decisions |
 | Speed / cost | 6.9 s median per contract, about $0.002 per contract, 0 LLM calls |
 
-Weakest categories (F1): Warranty Duration 0.50, Uncapped Liability 0.60, Non-Transferable License 0.62, Post-Termination Services 0.64.
-Arms A (an open 27B LLM, Qwen3.8-27B via DeepInfra: not a frontier model) and C (Drex-first cascade) are merged into `runs/final` when they finish; until then the
-Benchmark page shows only B and the majority-class baseline. The LLM arm is slow mainly because it runs in thinking mode.
+**Arms A (LLM alone) and C (cascade) are not in `runs/final` yet.** Until they are merged (`python run_bench.py merge`), this repo
+makes no head-to-head claim against the LLM; the Benchmark page shows only B and the majority baseline.
 
-Data: the CUAD test split (CC BY 4.0, The Atticus Project, https://www.atticusprojectai.org/cuad). Download `data.zip` and put `test.json` in `data/cuad/` (not committed).
+## Content Credentials
+```bash
+.venv/bin/python fossil.py demo           # seal the latest upload, verify, tamper one pixel, verify again (fails)
+.venv/bin/python fossil.py verify FILE.png
+```
+- Signing uses a generated **TEST** certificate chain in `keys/` (gitignored). Adobe's verifier shows an **untrusted signer**. Production needs a certificate from the C2PA trust list.
+- The claim is "modified or stripped after sealing", never who changed it.
+- Rehearsal results: a one-pixel tamper fails verification; the in-app **Forger Test** is **simulated** (a second test signer re-signs an edited brief) and is labelled as such.
+  A real edit in Photoshop on the web exported a file with **no credentials**, which the app reports as "No credentials".
+- `assets/mascot_firefly.png` is a Firefly-generated image embedded as an ingredient. It is a re-saved copy, so it does not carry Firefly's own credentials.
+
+## Limits
+- Weakest categories (F1): Warranty Duration 0.50, Uncapped Liability 0.60, Non-Transferable License 0.62, Post-Termination Services 0.64.
+- CUAD labels clause presence, not risk or acceptability. The "Urgent" list is a policy flag in `ui/index.html`, not ground truth.
+- The benchmark scores yes/no presence on 20 categories of one dataset, English, in plain text. Scanned PDFs and NDI ingest are not wired.
+- Mock mode output is not real Drex output. The UI labels it, and mock seals say `mode: mock`.
+- The Content Credentials seal uses a test certificate and proves provenance of the file, not the correctness of the decision.
+- Not built: Adobe PDF Embed API viewer, Express template.
+
+Data: CUAD, CC BY 4.0, The Atticus Project, https://www.atticusprojectai.org/cuad.
