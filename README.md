@@ -29,6 +29,19 @@ python -m venv .venv && .venv/bin/pip install -r requirements.txt      # Windows
 ```
 Upload a PDF, open the clause board, review clauses, then seal the brief. Mock mode is on whenever no Drex key is set.
 
+### Run it: Drex provider (env only, no code change)
+The app header badge shows the active provider ("Drex via Nace" or "Drex via DeepInfra") next to the LIVE or MOCK badge.
+
+| | Nace (default) | DeepInfra |
+|---|---|---|
+| `DREX_BASE_URL` | `https://console.nace.ai` (default) | `https://api.deepinfra.com` |
+| `DREX_MODEL` | `drex-v2.0` | `nace-ai/drex-v2.0` |
+| `DREX_API_KEY` (or `NACE_API_KEY` for Nace) | your Nace key | your DeepInfra key |
+| `DREX_QUESTIONS_PER_REQ` | `20` (default) | `10` (DeepInfra rejects more than 16 questions per request) |
+
+When `DREX_MODEL` is set, the app and demo paths use it as is and never call `GET /v1/models`. The benchmark harness still resolves the model from `/v1/models`.
+Both providers serve the same `/v1/systemone` contract. `DREX_API_KEY` takes priority over `NACE_API_KEY`. The published benchmark numbers were measured on Nace.
+
 ### Environment variables (names only; put values in `.env`, which is gitignored)
 | Name | Purpose |
 |---|---|

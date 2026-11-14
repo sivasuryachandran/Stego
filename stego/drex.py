@@ -58,6 +58,12 @@ class DrexClient:
                 return m
         raise RuntimeError(f"No preferred Drex model available. /v1/models returned: {avail}")
 
+    async def ensure_model(self):
+        """App and demo paths: if DREX_MODEL is set in the environment use it as is (no GET /v1/models). Benchmark keeps resolve_model()."""
+        if config.MOCK or os.getenv("DREX_MODEL"):
+            return config.DREX_MODEL
+        return await self.resolve_model()
+
     @staticmethod
     def question(category, definition):
         return {

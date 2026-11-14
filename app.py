@@ -141,7 +141,7 @@ async def analyze(title, pages, pdf_name, job=None):
     theta, tau, _ = thresholds()
     ledger_start = LEDGER.f.tell()
     drex = DrexClient(LEDGER, Cache(os.path.join(LIVE, "cache.sqlite"), enabled=False))
-    await drex.resolve_model()
+    await drex.ensure_model()
     ct = build_contract(title, pages)
     cats = config.CATEGORIES
     prog = {}
@@ -224,7 +224,7 @@ def _race_main(rid, title, pages):
         cache = Cache(os.path.join(LIVE, "cache.sqlite"), enabled=False)
         drex, llm = DrexClient(LEDGER, cache), LLMClient(LEDGER, cache)
         try:
-            await drex.resolve_model()
+            await drex.ensure_model()
         except Exception as e:
             R["stego"].update(status="error", error=f"{type(e).__name__}: {str(e)[:160]}")
         R["drex_model"] = config.DREX_MODEL
@@ -322,7 +322,7 @@ def state():
     led = read_jsonl(os.path.join(LIVE, "ledger.jsonl"))
     for r in led:
         r.pop("probs", None)
-    return {"mode": "mock" if config.MOCK else "live", "drex_model": config.DREX_MODEL, "theta": theta, "tau": tau,
+    return {"mode": "mock" if config.MOCK else "live", "drex_model": config.DREX_MODEL, "drex_provider": "Mock Drex" if config.MOCK else config.DREX_PROVIDER, "theta": theta, "tau": tau,
             "thresholds_frozen": frozen, "llm_model": config.LLM_MODEL or None, "llm_ready": bool(config.LLM_API_KEY) or config.MOCK, "fossil": fossil is not None, "drex_price_per_m": config.DREX_PRICE_PER_M_INPUT, "categories": config.CATEGORIES, "contracts": live, "decisions": latest_decisions(), "ledger": led[-500:]}
 
 

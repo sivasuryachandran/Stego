@@ -38,7 +38,9 @@ DREX_BASE_URL = os.getenv("DREX_BASE_URL", "https://console.nace.ai")
 DREX_PATH = os.getenv("DREX_PATH", "/v1/systemone")       # client falls back to /v1/decisions on 404
 DREX_MODEL = os.getenv("DREX_MODEL", "drex-v2.0")         # resolved at startup against GET /v1/models
 DREX_MODEL_PREFS = ["drex-v2.0", "drex-max-v1.1", "drex-max", "drex-latest"]
-DREX_API_KEY = os.getenv("NACE_API_KEY") or os.getenv("DREX_API_KEY", "")   # NACE_API_KEY lives in .env (gitignored)
+DREX_API_KEY = os.getenv("DREX_API_KEY") or os.getenv("NACE_API_KEY", "")   # keys live in .env (gitignored); DREX_API_KEY wins so a provider switch is env-only
+DREX_PROVIDER = ("Drex via DeepInfra" if "deepinfra" in DREX_BASE_URL.lower() else "Drex via Nace" if "nace.ai" in DREX_BASE_URL.lower()
+                 else "Drex via " + DREX_BASE_URL.split("//")[-1].split("/")[0])
 DREX_MAX_INFLIGHT = int(os.getenv("DREX_MAX_INFLIGHT", "8"))   # free tier is reportedly 8 in-flight; verify
 DREX_QUESTIONS_PER_REQ = int(os.getenv("DREX_QUESTIONS_PER_REQ", "20"))  # <=64 on TypeSafe-compatible hosts
 DREX_PRICE_PER_M_INPUT = float(os.getenv("DREX_PRICE_PER_M_INPUT", "0.06"))  # set from Nace pricing page

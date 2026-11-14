@@ -462,7 +462,7 @@ function render() {
   document.title = "Stego · " + TABS[state.tab];
   const liveDrex = D.server && D.server.mode === "live", mockDrex = D.server && D.server.mode === "mock";
   const demoOK = !!liveDrex && !D.sample, demo = demoOK && !!state.demo;
-  $("#model").textContent = liveDrex ? "Drex · live · " + D.server.drex_model : mockDrex ? "Drex · MOCK" : D.sample ? "Drex · sample data" : "Drex · " + D.drex_model;
+  $("#model").textContent = liveDrex ? "Drex · live · " + D.server.drex_model + (D.server.drex_provider ? " · " + D.server.drex_provider.replace(/^Drex /, "") : "") : mockDrex ? "Drex · MOCK" : D.sample ? "Drex · sample data" : "Drex · " + D.drex_model;
   document.querySelector(".pill .dot").style.background = liveDrex ? "var(--green)" : mockDrex ? "var(--amber)" : "#999";
   $("#runtime").textContent = D.sample ? "SAMPLE DATA" : "RUN: " + D.run.toUpperCase();
   $("#runtime").style.display = demo ? "none" : "";
@@ -1067,13 +1067,16 @@ function clip(t, n = 240) {
   const sp = cut.lastIndexOf(" "); return cut.slice(0, sp > 0 ? sp : n) + "…";
 }
 const NOEV = '<i class="noev">No supporting passage found</i>';
-const PDFJS = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js", PDFW = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+const PDFJS = "/ui/vendor/pdfjs/pdf.min.js", PDFW = "/ui/vendor/pdfjs/pdf.worker.min.js";   // bundled copy (Apache-2.0, see ui/vendor/pdfjs/LICENSE)
+const PDFJS_CDN = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js", PDFW_CDN = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
 function loadPdfjs() {
   return window._pdfjsP || (window._pdfjsP = new Promise((res, rej) => {
     if (window.pdfjsLib) return res(window.pdfjsLib);
-    const el = document.createElement("script"); el.src = PDFJS;
-    el.onload = () => { window.pdfjsLib.GlobalWorkerOptions.workerSrc = PDFW; res(window.pdfjsLib); };
-    el.onerror = () => rej(new Error("pdf.js could not load (offline?)")); document.head.append(el); }));
+    const tryLoad = (src, worker, next) => { const el = document.createElement("script"); el.src = src;
+      el.onload = () => { window.pdfjsLib.GlobalWorkerOptions.workerSrc = worker; res(window.pdfjsLib); };
+      el.onerror = () => next ? next() : rej(new Error("pdf.js could not load")); document.head.append(el); };
+    tryLoad(PDFJS, PDFW, () => tryLoad(PDFJS_CDN, PDFW_CDN));   // local copy first, CDN only if the local file is missing
+  }));
 }
 const normT = t => String(t).toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
 async function renderPdf() {
@@ -1190,7 +1193,7 @@ function about() {
   <div class="sec"><h2>How to use it</h2><span class="badge">about five minutes</span></div>
   <div class="card studs">${studs(4)}
     ${step(1, "Start the app", `Run it from the project folder, then open <code class="k">http://localhost:8000/</code>. Put your Drex key in <code class="k">.env</code> as <code class="k">NACE_API_KEY</code> (it is gitignored). Without a key you get mock Drex, clearly labelled.<pre class="cmd">.venv/bin/python app.py</pre>`)}
-    ${step(2, "Upload a contract", "Use the big red button on the Overview, the header button or the drop zone. Try <code class=\"k\">samples/sample_vendor_agreement.pdf</code> (5 pages) or the long samples in <code class="k">samples/</code>. Cancel any time. Scanned PDFs need OCR, which is not wired yet.")}
+    ${step(2, "Upload a contract", "Use the big red button on the Overview, the header button or the drop zone. Try <code class=\"k\">samples/sample_vendor_agreement.pdf</code> (5 pages) or the long samples in <code class=\"k\">samples/</code>. Cancel any time. Scanned PDFs need OCR, which is not wired yet.")}
     ${step(3, "Read the clause board", "Start with the red and amber queues, then the human-review queue. Click a clause to see its probability and the highlighted passage. Approve or escalate to mark your own decision (kept in this browser, and sealed into the brief if you seal it).")}
     ${step(4, "Search the portfolio", "Open Portfolio Search, click the clauses you care about, and open any match in the Workspace.")}
     ${step(5, "Race it", "Open Live Race and pick the sample or your own PDF. The race first waits for Drex's per-minute rate window to clear, so the clock only starts when both sides are on equal footing. You need an LLM key in <code class=\"k\">.env</code> for the right-hand side.")}
