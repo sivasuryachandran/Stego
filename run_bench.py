@@ -217,7 +217,7 @@ def gate_checks(all_res, sel, cats, theta, summary):
         gap = acc["A"] - acc["B"]
         print(f"  Drex-only macro-F1 within 0.15 of LLM (gap {gap:+.3f}): {'PASS' if gap <= 0.15 else 'FAIL'}"
               "  -> if FAIL, lead with the cascade (C), not Drex-only (B)")
-    print("  Evidence mapping: check evidence_hit@3 above; NDI page mapping is checked in the demo pipeline.")
+    print("  Evidence mapping: check evidence_hit@3 above.")
 
 
 if __name__ == "__main__":

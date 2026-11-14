@@ -1,0 +1,119 @@
+{
+ "recorded": true,
+ "source": "runs/final/predictions.jsonl, arms drex (B) and llm (A); a real run from the benchmark, not simulated",
+ "title": "NOVOINTEGRATEDSCIENCES,INC_12_23_2019-EX-10.1-JOINT VENTURE AGREEMENT",
+ "pages": 9,
+ "stego_ms": 6214,
+ "llm_ms": 130816,
+ "stego_median_ms": 6945,
+ "llm_median_ms": 137712,
+ "agree": 20,
+ "of": 20,
+ "drex_model": "drex-v2.0",
+ "llm_model": "Qwen/Qwen3.8-27B",
+ "theta": 0.48,
+ "clauses": {
+  "Anti-Assignment": {
+   "p": 0.8926,
+   "page": 7
+  },
+  "License Grant": {
+   "p": 0.0171,
+   "page": 1
+  },
+  "Cap On Liability": {
+   "p": 0.0044,
+   "page": 4
+  },
+  "Audit Rights": {
+   "p": 0.0188,
+   "page": 6
+  },
+  "Revenue/Profit Sharing": {
+   "p": 0.9304,
+   "page": 6
+  },
+  "Exclusivity": {
+   "p": 0.0228,
+   "page": 5
+  },
+  "Insurance": {
+   "p": 0.0033,
+   "page": 8
+  },
+  "Minimum Commitment": {
+   "p": 0.0483,
+   "page": 5
+  },
+  "Termination For Convenience": {
+   "p": 0.0041,
+   "page": 5
+  },
+  "Post-Termination Services": {
+   "p": 0.0089,
+   "page": 5
+  },
+  "Renewal Term": {
+   "p": 0.8654,
+   "page": 5
+  },
+  "Change Of Control": {
+   "p": 0.4446,
+   "page": 7
+  },
+  "Covenant Not To Sue": {
+   "p": 0.0063,
+   "page": 8
+  },
+  "Non-Compete": {
+   "p": 0.0125,
+   "page": 1
+  },
+  "Ip Ownership Assignment": {
+   "p": 0.0058,
+   "page": 7
+  },
+  "Non-Transferable License": {
+   "p": 0.0962,
+   "page": 7
+  },
+  "Rofr/Rofo/Rofn": {
+   "p": 0.0278,
+   "page": 5
+  },
+  "Liquidated Damages": {
+   "p": 0.0042,
+   "page": 5
+  },
+  "Uncapped Liability": {
+   "p": 0.0885,
+   "page": 8
+  },
+  "Warranty Duration": {
+   "p": 0.0048,
+   "page": 5
+  }
+ },
+ "present": {
+  "Anti-Assignment": true,
+  "License Grant": false,
+  "Cap On Liability": false,
+  "Audit Rights": false,
+  "Revenue/Profit Sharing": true,
+  "Exclusivity": false,
+  "Insurance": false,
+  "Minimum Commitment": false,
+  "Termination For Convenience": false,
+  "Post-Termination Services": false,
+  "Renewal Term": true,
+  "Change Of Control": false,
+  "Covenant Not To Sue": false,
+  "Non-Compete": false,
+  "Ip Ownership Assignment": false,
+  "Non-Transferable License": false,
+  "Rofr/Rofo/Rofn": false,
+  "Liquidated Damages": false,
+  "Uncapped Liability": false,
+  "Warranty Duration": false
+ }
+}

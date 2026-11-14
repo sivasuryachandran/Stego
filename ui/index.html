@@ -672,11 +672,11 @@ function sceneSet(id) {
 
 const BF = [
   ["ingest", "Ingest", "▦", "Pages in, evidence out.", "A contract PDF becomes pages. Every flag keeps its page, so a reviewer lands on the passage, not a summary.",
-    ["Text-based PDFs and .txt today; scanned input goes through NDI in the full pipeline", "Each page is its own chunk, so evidence maps straight to a page number", "The viewer opens the PDF on the page Drex ranked first"], "pages become spans"],
+    ["Text-based PDFs and .txt only; scanned PDFs are not supported", "Each page is its own chunk, so evidence maps straight to a page number", "The viewer opens the PDF on the page Drex ranked first"], "pages become spans"],
   ["decide", "Decide", "?", "20 clause questions per request.", "Drex answers a fixed set of yes/no clause questions on every section, using CUAD's own labeling definitions. Plain code does the rest.",
     ["Section sweep first, then a paragraph drill-down only where 0.2 < p < 0.9", "Presence = highest probability; evidence = pages ranked by probability", "Zero general-purpose reasoning-LLM calls on this path"], "drex decides every clause"],
   ["abstain", "Abstain", "τ", "Know when it's guessing.", "Confidence below τ is not forced into a yes or no. It goes to a human, and the cascade arm sends it to an LLM.",
-    ["τ and θ are set on 20 calibration contracts, then committed to git before the report run", "Selective accuracy reported at 80%, 90% and 100% coverage", "We test Nace's claim: right 97% of the time at 93% confidence or higher"], "route by confidence"],
+    ["τ and θ are set on 20 calibration contracts and frozen in runs/thresholds.json (timestamped) before the report run", "Selective accuracy reported at 80%, 90% and 100% coverage", "We test a published target: right 97% of the time at 93% confidence or higher"], "route by confidence"],
   ["prove", "Prove", "✓", "Every call is a receipt.", "Each Drex and LLM call is appended to a ledger with model, unit, latency, tokens and probabilities. Numbers on the slide come from there.",
     ["Three arms on the official CUAD test split, all reported whichever wins", "Failed runs count as wrong on every category", "Click any row in the receipts table to see the raw record"], "every call logged"],
   ["seal", "Seal", "S", "Sealed, not just stored.", "The exported brief is signed with Adobe Content Credentials (C2PA): model, probabilities, evidence pages, a hash of the call ledger and any human review.",
@@ -709,7 +709,7 @@ function landing() {
   <div class="hero"><div>
     <span class="badge y" style="margin-bottom:18px">Fossil taxonomy engine</span>
     <h1>Stego hunts the hidden clause.</h1>
-    <p style="font:500 18px var(--body);margin:18px 0 28px;color:var(--mut)">NDI shows the proof. Drex decides what deserves human attention.</p>
+    <p style="font:500 18px var(--body);margin:18px 0 28px;color:var(--mut)">The highlighted page shows the proof. Drex decides what deserves human attention.</p>
     <span class="sticker">Zero reasoning-LLM calls</span>
     <div style="display:flex;gap:16px;margin-top:32px;flex-wrap:wrap"><button class="btn dark" data-go="workspace">Open the clause board</button><button class="btn" data-go="bench">See the benchmark</button></div>
     <button class="btn red big" id="heroUpload" style="margin-top:20px">${dino(58)}<span>Upload a contract</span></button>
@@ -726,7 +726,7 @@ function landing() {
   <div class="drop" id="drop">⬆ Drop a contract PDF or .txt here, or click to browse<div class="lab" style="margin-top:6px;font-weight:500">Text-based PDFs only for now · try samples/sample_vendor_agreement.pdf</div></div>
   <div class="sec"><h2>Built for contract triage</h2><span class="badge">ingest · decide · abstain · prove</span></div>${blocks()}
   <div class="sec"><h2>How Stego works</h2><span class="badge">6 stages · 3 outputs</span></div>
-  <div class="flow">${[["INGEST","Contract PDF → pages. Every span keeps its page number (NDI in the full pipeline; pypdf here).",0],["SECTION SWEEP","Drex answers all 20 clause questions per page in one request.",1],["DRILL-DOWN","Pages with 0.2 < p < 0.9 are re-asked per paragraph.",1],["AGGREGATE","Plain code: presence = max p, evidence = pages ranked by p.",0],["ABSTENTION GATE","Confidence ≥ τ is decided. Below τ goes to a human.",0],["OUTPUTS","Clause board · human queue · review brief.",0]].map(([t,d,x],i)=>`<div class="card step ${x ? "drex" : ""}">${studs(2)}<span class="n">${i + 1}</span><h3 style="font-size:15px">${t}</h3><p>${d}</p></div>`).join("")}</div>
+  <div class="flow">${[["INGEST","Contract PDF → pages. Every span keeps its page number (text is extracted with pypdf).",0],["SECTION SWEEP","Drex answers all 20 clause questions per page in one request.",1],["DRILL-DOWN","Pages with 0.2 < p < 0.9 are re-asked per paragraph.",1],["AGGREGATE","Plain code: presence = max p, evidence = pages ranked by p.",0],["ABSTENTION GATE","Confidence ≥ τ is decided. Below τ goes to a human.",0],["OUTPUTS","Clause board · human queue · review brief.",0]].map(([t,d,x],i)=>`<div class="card step ${x ? "drex" : ""}">${studs(2)}<span class="n">${i + 1}</span><h3 style="font-size:15px">${t}</h3><p>${d}</p></div>`).join("")}</div>
   <div class="lab" style="margin-top:8px">Blue = Drex calls. No general-purpose reasoning LLM anywhere in this path.</div>
   <div class="sec"><h2>Three arms, one experiment</h2><span class="badge">CUAD test split · 82 report contracts</span></div>
   <div class="cols3">
@@ -734,7 +734,7 @@ function landing() {
     <div class="card g studs">${studs(3)}<span class="badge g">B</span><h3 style="margin:8px 0">Stego (Drex only)</h3><p>Section sweep, paragraph drill-down, code aggregation.</p><div class="lab">0 reasoning calls</div></div>
     <div class="card a studs">${studs(3)}<span class="badge a">C</span><h3 style="margin:8px 0">Drex-first cascade</h3><p>B first; the LLM only sees Drex's top-4 chunks for categories below τ.</p><div class="lab">LLM only for uncertain categories</div></div></div>
   <div class="sec"><h2>What Stego does and doesn't claim</h2></div>
-  <div class="grid g2"><div class="card g studs">${studs(3)}<h3>We claim</h3><ul class="yes"><li>Which clauses are present, where, and when the system is guessing.</li><li>Zero general-purpose reasoning-LLM calls after ingestion.</li><li>In the Drex-only path, contract text goes to Drex and never to a frontier LLM.</li><li>Only numbers we measured ourselves, with every call logged.</li></ul></div>
+  <div class="grid g2"><div class="card g studs">${studs(3)}<h3>We claim</h3><ul class="yes"><li>Which clauses are present, where, and when the system is guessing.</li><li>Zero general-purpose reasoning-LLM calls after ingestion.</li><li>The Drex-only path can be pointed at a Drex deployment on your own infrastructure (Nace documents custom and on-prem deployments).</li><li>Only numbers we measured ourselves, with every call logged.</li></ul></div>
   <div class="card r studs">${studs(3)}<h3>We don't claim</h3><ul class="no"><li>"Legally approved" or a legal-risk score. CUAD labels presence, not risk.</li><li>"No LLM at all". Document ingestion uses models.</li><li>That "urgent" is ground truth. It's a policy layer.</li></ul></div></div>`;
   $("#heroUpload").onclick = () => D.server ? picker.click() : toast("Start the app with: .venv/bin/python app.py (uploads need the server).");
   const dz = $("#drop"); dz.onclick = () => D.server ? picker.click() : toast("Start the app with: .venv/bin/python app.py");
@@ -780,7 +780,7 @@ function workspace() {
           <div class="hl"><span class="flag">${qk === "u" ? (cl.p < D.theta ? "LIKELY ABSENT" : "UNCERTAIN") : qk === "g" ? "NOT PRESENT" : "FLAGGED: " + esc(state.sel.toUpperCase())}</span>
           <div class="lab" style="color:#111">Extracted passage (Drex evidence)</div><div style="font:600 15px/1.6 var(--body)">${esc(ev.text)}</div></div>
           <p class="faded">… following provisions of the Agreement …</p>`
-        : cl.p < D.theta ? `<div class="hl" style="background:var(--grey);box-shadow:none"><div class="lab" style="color:#111">Evidence</div><b>No supporting passage found</b> for this clause (p=${cl.p.toFixed(2)} is below θ=${D.theta}).</div>` : `<div class="hl"><div class="lab" style="color:#111">Evidence</div>Drex ranked <b>${ev ? "chunk " + ev.chunk : "no chunk"}</b> of the CUAD text for this clause. Page highlighting needs the NDI pipeline.</div>`}
+        : cl.p < D.theta ? `<div class="hl" style="background:var(--grey);box-shadow:none"><div class="lab" style="color:#111">Evidence</div><b>No supporting passage found</b> for this clause (p=${cl.p.toFixed(2)} is below θ=${D.theta}).</div>` : `<div class="hl"><div class="lab" style="color:#111">Evidence</div>Drex ranked <b>${ev ? "chunk " + ev.chunk : "no chunk"}</b> of the CUAD text for this clause. Page highlighting needs a page-mapped PDF; CUAD text has no pages.</div>`}
       </div></div>
     <div class="ws-r">
       <div class="card ${qk === "r" ? "r" : qk === "u" ? "u" : qk === "g" ? "g" : "a"} studs">${studs(4)}
@@ -870,7 +870,7 @@ function bench() {
   const AA = S.find(s => s.arm[0] === "A"), sel = B["selective_acc@90"];
   const heroNum = (AA && sel != null && AA.latency_p50_ms && B.latency_p50_ms) ? `<div class="hero-num"><div class="lab" style="color:#111">The number${D.sample ? " · SAMPLE, NOT MEASURED" : ""}</div>
     <div class="hn">Stego decided <b>90%</b> of clauses alone at <b>${pct(sel)}</b> accuracy, <b>${(AA.latency_p50_ms / B.latency_p50_ms).toFixed(1)}×</b> faster than the ${esc(AA.arm.replace(/^A /, ""))}.</div>
-    <div class="lab" style="color:#111;text-transform:none;font-weight:500;font-size:12px">"90% of clauses" = the 90% where Drex is most confident (selective accuracy @90). Speed = LLM p50 ÷ Stego p50 per contract. LLM: ${esc(D.llm_model || "unset")}. Every other number is in the table below.</div></div>` : "";
+    <div class="lab" style="color:#111;text-transform:none;font-weight:500;font-size:12px">"90% of clauses" = the 90% where Drex is most confident (selective accuracy @90). Speed = LLM p50 ÷ Stego p50 per contract. LLM: ${esc(D.llm_model || "unset")}. <b>The accuracy figure is Stego's own, on its most-confident decisions only. It is NOT comparable to the LLM's overall accuracy</b>; for that, read the table and the sensitivity check below.</div></div>` : "";
   $("#view").innerHTML = `${heroNum}
   <div class="card studs" style="padding:28px">${studs(5)}<div style="display:flex;justify-content:space-between;gap:30px;flex-wrap:wrap;align-items:center">
     <div style="flex:1;min-width:300px"><span class="badge">Suite: CUAD test · ${S[0]?.contracts ?? "—"} report contracts</span>
@@ -893,7 +893,7 @@ function bench() {
   <div class="grid g2" style="margin-top:32px">
     <div class="card studs">${studs(3)}<span class="badge g">Calibration audit</span><h3 style="margin:8px 0 2px">Reliability: predicted vs actual</h3><div class="lab">ECE ${B.ece?.toFixed(3) ?? "–"} · Brier ${B.brier?.toFixed(3) ?? "–"}</div>${reliability(B.reliability)}</div>
     <div class="card studs">${studs(3)}<span class="badge a">Tradeoff</span><h3 style="margin:8px 0 12px">Selective-accuracy frontier: coverage vs accuracy (arm B)</h3>${frontier(B)}${selective(B)}
-      <div class="card" style="background:var(--canvas);margin:18px 0 0;padding:10px 14px;box-shadow:none"><b>Nace's claim, tested:</b> at ≥ 93% confidence, right 97% of the time. Ours: <b>${pct(claim)}</b> over ${B["n_conf>=0.93"] ?? "?"} decisions. ${B["n_conf>=0.93"] && B.decisions_scored ? `Coverage: ${B["n_conf>=0.93"]} of ${B.decisions_scored} decisions (${pct(B["n_conf>=0.93"] / B.decisions_scored)}) reach that confidence; the rest go to a human. ` : ""}${claim == null ? "" : claim >= .97 ? "Claim held on this task." : `${((.97 - claim) * 100).toFixed(1)} points below the claim on this task.`}</div></div></div>
+      <div class="card" style="background:var(--canvas);margin:18px 0 0;padding:10px 14px;box-shadow:none"><b>Published target, tested:</b> at ≥ 93% confidence, right 97% of the time (a figure from the hackathon brief, not independently verified).  Ours: <b>${pct(claim)}</b> over ${B["n_conf>=0.93"] ?? "?"} decisions. ${B["n_conf>=0.93"] && B.decisions_scored ? `Coverage: ${B["n_conf>=0.93"]} of ${B.decisions_scored} decisions (${pct(B["n_conf>=0.93"] / B.decisions_scored)}) reach that confidence; the rest go to a human. ` : ""}${claim == null ? "" : claim >= .97 ? "Target held on this task." : `${((.97 - claim) * 100).toFixed(1)} points below the target on this task.`}</div></div></div>
   <div class="sec"><h2>Per-category F1 (Drex only)</h2></div><div class="card">${(() => { const w = Object.entries(B.per_category_f1 || {}).sort((a, b) => a[1] - b[1]).slice(0, 4);
       return w.length ? `<div class="banner sample" style="margin-bottom:14px"><b>Weakest four:</b> ${w.map(([c, v]) => esc(c) + " " + v.toFixed(2)).join(" · ")}</div>` : ""; })()}${catF1(B.per_category_f1)}</div>
   <div class="sec"><h2>Rigor rules</h2><span class="badge y">pre-registered</span></div>
@@ -1024,12 +1024,29 @@ function raceView() {
       : !srv.llm_ready ? '<div class="banner sample">LLM_API_KEY is not set, so the baseline side cannot run. Set it (and LLM_MODEL) and restart app.py.</div>' : ""}
     ${srv && srv.llm_model ? `<div class="lab" style="text-transform:none;font-size:12px;margin-bottom:10px">LLM baseline: <b>${esc(srv.llm_model)}</b>${/qwen/i.test(srv.llm_model) ? ", a thinking model: expect one to three minutes (or a timeout on long contracts), not seconds." : ""}</div>` : ""}
     <div style="display:flex;gap:10px;flex-wrap:wrap"><button class="btn green" id="raceSample" ${srv ? "" : "disabled"}>Race the sample contract</button>
-      <label class="btn" style="cursor:pointer">Race my own PDF…<input id="racePick" type="file" accept=".pdf,.txt" hidden></label></div></div>
+      <label class="btn" style="cursor:pointer">Race my own PDF…<input id="racePick" type="file" accept=".pdf,.txt" hidden></label>
+      <button class="btn yellow" id="raceReplay" title="Plays a real run recorded during the benchmark">Replay recorded race</button>
+      <select id="replaySpeed" title="Playback speed"><option value="1">real time</option><option value="10" selected>10× speed</option><option value="30">30× speed</option></select></div></div>
     <div id="raceBoard" style="margin-top:24px"></div>`;
   $("#raceSample").onclick = async () => { try { const r = await fetch("/samples/sample_vendor_agreement.pdf"); if (!r.ok) throw new Error("sample PDF missing: run samples/make_sample.py");
       startRace(new File([await r.blob()], "sample_vendor_agreement.pdf")); } catch (e) { toast(e.message); } };
   $("#racePick").onchange = e => e.target.files[0] && startRace(e.target.files[0]);
+  $("#raceReplay").onclick = () => startReplay(+$("#replaySpeed").value);
   drawRace(null, 0);
+}
+async function startReplay(speed) {
+  (window._raceT || []).forEach(clearInterval); window._raceT = [];
+  fetch("/api/race/cancel", { method: "POST" }).catch(() => {});   // never leave a live race running behind a replay
+  let rp; try { const r = await fetch("replay/race_replay.json"); if (!r.ok) throw new Error(r.status); rp = await r.json(); } catch (e) { toast("No recorded race found (ui/replay/race_replay.json)."); return; }
+  const t0 = Date.now();
+  const iv = setInterval(() => {
+    const el = (Date.now() - t0) * speed;       // recorded milliseconds elapsed
+    const R = { recorded: true, title: rp.title, speed, pages: rp.pages, drex_model: rp.drex_model, llm_model: rp.llm_model, mock: false, phase: "racing", finished: false,
+      stego: el >= rp.stego_ms ? { status: "done", ms: rp.stego_ms, clauses: rp.clauses } : { status: "running" },
+      llm: el >= rp.llm_ms ? { status: "done", ms: rp.llm_ms, calls: 1, present: rp.present } : { status: "running" } };
+    drawRace(R, el); if (R.stego.status === "done" && R.llm.status === "done") clearInterval(iv);
+  }, 100);
+  window._raceT.push(iv);
 }
 async function startRace(file) {
   (window._raceT || []).forEach(clearInterval); window._raceT = []; window._animated = {};
@@ -1061,12 +1078,16 @@ function loadPdfjs() {
 const normT = t => String(t).toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
 async function renderPdf() {
   const w = $("#pdfwrap"); if (!w) return;
+  // if PDF.js cannot load (offline, CDN blocked) fall back to the browser's own viewer after 10 s, instead of hanging on "Loading page…"
+  const fallback = why => { if (!document.body.contains(w) || w.querySelector("canvas")) return;
+    w.innerHTML = `<div class="lab" style="padding:8px 12px;background:var(--yellow)">Highlight unavailable (${esc(why)}). Showing the browser's own PDF viewer on page ${w.dataset.page}; the evidence passage is shown below.</div><iframe title="Contract PDF" style="width:100%;height:560px;border:0" src="${w.dataset.pdf}#page=${w.dataset.page}"></iframe>`; };
+  const timer = setTimeout(() => fallback("PDF.js did not load within 10 s"), 10000);
   try {
     const lib = await loadPdfjs(), doc = await lib.getDocument(w.dataset.pdf).promise, pg = await doc.getPage(+w.dataset.page);
     const width = w.clientWidth || 600, v0 = pg.getViewport({ scale: 1 }), scale = width / v0.width * 2, vp = pg.getViewport({ scale });
     const cv = document.createElement("canvas"); cv.width = vp.width; cv.height = vp.height;
     await pg.render({ canvasContext: cv.getContext("2d"), viewport: vp }).promise;
-    w.innerHTML = ""; w.append(cv);
+    clearTimeout(timer); w.innerHTML = ""; w.append(cv);
     const q = normT(w.dataset.q || ""); if (!q) return;
     const tc = await pg.getTextContent(); let full = "", map = [];
     tc.items.forEach((it, i) => { const n = normT(it.str); if (!n) return; if (full) full += " "; map.push([full.length, full.length + n.length, i]); full += n; });
@@ -1077,7 +1098,7 @@ async function renderPdf() {
       const d = document.createElement("div"); d.className = "hlbox";
       d.style.cssText = `left:${(tx[4] / vp.width * 100).toFixed(2)}%;top:${((tx[5] - h * .95) / vp.height * 100).toFixed(2)}%;width:${(it.width * scale / vp.width * 100).toFixed(2)}%;height:${(h * 1.2 / vp.height * 100).toFixed(2)}%`;
       w.append(d); }
-  } catch (e) { w.innerHTML = `<div class="lab" style="padding:14px">Could not render the PDF page (${esc(e.message)}). <a target="_blank" href="${w.dataset.pdf}#page=${w.dataset.page}">Open the PDF ↗</a></div>`; }
+  } catch (e) { clearTimeout(timer); fallback(e.message); }
 }
 
 function drawRace(R, el, msg) {
@@ -1097,18 +1118,26 @@ function drawRace(R, el, msg) {
     return `<div class="${cls}"><span>${esc(c)}</span><small>${sub}</small></div>`;
   }).join("");
   const panel = (k, title, sub) => { const S = R[k], running = S.status === "running", t = running ? el : (S.ms ?? 0);
+    const thinking = k === "llm" && running ? `<div class="lab" style="color:#111;text-transform:none;font-size:13px;margin:-2px 0 6px">still thinking… ${Math.round(t / 1000)} s so far</div>` : "";
     return `<div class="race-p ${k}"><div class="rp-h"><b>${title}</b><span class="badge ${S.status === "error" ? "r" : running ? "y" : "g"}">${S.status === "error" ? "ERROR" : running ? "RUNNING" : "DONE"}</span></div>
-      <div class="lab">${sub}</div><div class="rp-t">${(t / 1000).toFixed(1)}<small>s</small></div>
-      <div class="rp-kv">${k === "stego" ? `<span>Drex decisions</span><b>${S.decisions ?? 0}</b><span>Reasoning-LLM calls</span><b>0</b>` : `<span>LLM calls</span><b>${S.calls ?? (running ? "…" : 0)}</b><span>Pages sent</span><b>${R.pages}</b>`}</div>
+      <div class="lab">${sub}</div><div class="rp-t">${(t / 1000).toFixed(1)}<small>s</small></div>${thinking}
+      <div class="rp-kv">${k === "stego" ? `<span>Drex decisions</span><b>${S.decisions ?? "–"}</b><span>Reasoning-LLM calls</span><b>0</b>` : `<span>LLM calls</span><b>${S.calls ?? (running ? "…" : 0)}</b><span>Pages sent</span><b>${R.pages}</b>`}</div>
       ${S.status === "error" ? `<div class="banner sample" style="margin:0">${esc(S.error)}</div>` : `<div class="plates">${plates(k, S)}</div>`}</div>`; };
   let verdict = "";
+  const stegoDone = R.stego.status === "done", sSec = stegoDone ? (R.stego.ms / 1000).toFixed(1) : "";
+  if (stegoDone && R.llm.status === "running") {      // Stego is done: say so now, never wait for the LLM
+    verdict = `<div class="verdict"><b>Stego finished in ${sSec} s.</b> The LLM is still thinking (${Math.round(el / 1000)} s so far). Its answers will appear here if and when they arrive; you don't have to wait.</div>`;
+  } else if (stegoDone && R.llm.status === "error") {
+    verdict = `<div class="verdict"><b>Stego finished in ${sSec} s.</b> The LLM did not finish: ${esc(R.llm.error || "error")}</div>`;
+  }
   if (both) {
     const s = R.stego.ms, l = R.llm.ms, first = s <= l ? "Stego" : "The LLM", logo = (document.querySelector(".logomark")?.outerHTML || "");
     verdict = `<div class="agree">Agree on ${cats.length - dis.size} of ${cats.length} · disagree on ${dis.size}<span class="lab" style="text-transform:none;font-weight:500">outlined tiles = the two sides disagree. Dashed = Drex below τ.${R.mock ? " (mock answers, meaningless)" : ""}</span></div>
       <div class="verdict" style="display:flex;gap:16px;align-items:center"><span style="width:70px;flex:none">${logo}</span><div>${first} finished first: Stego ${(s / 1000).toFixed(1)} s vs LLM ${(l / 1000).toFixed(1)} s${s < l ? ` (${(l / s).toFixed(1)}× faster)` : ""}.${R.mock ? ' <span class="badge r">MOCK TIMINGS, NOT REAL</span>' : ""}
-      <div class="lab" style="margin-top:6px;color:#111;text-transform:none;font-weight:500">One contract, one run, started cold: the LLM prompt carries a unique run id so provider-side caching can't speed it up, and any earlier race was cancelled. Speed only: agreement is not accuracy. The benchmark page compares accuracy over the report contracts.</div></div></div>`;
+      <div class="lab" style="margin-top:6px;color:#111;text-transform:none;font-weight:500">${R.recorded ? "A recorded benchmark run on one contract: Drex-only arm B and the LLM arm A, each timed on its own. Speed only: agreement is not accuracy. The benchmark page compares accuracy over all report contracts." : "One contract, one run, started cold: the LLM prompt carries a unique run id so provider-side caching can't speed it up, and any earlier race was cancelled. Speed only: agreement is not accuracy. The benchmark page compares accuracy over the report contracts."}</div></div></div>`;
   }
-  box.innerHTML = `<div class="race">${panel("stego", "STEGO · Drex only", "Drex " + esc(R.drex_model || ""))}${panel("llm", "LLM BASELINE", esc(R.llm_model || "unset") + (R.mock ? " (mock)" : ""))}</div>${verdict}`;
+  const rec = R.recorded ? `<div class="banner sample" style="margin-bottom:16px"><b>RECORDED</b>: a real run from the benchmark (${esc(R.title)}, ${R.pages} chunks), replayed at ${R.speed === 1 ? "real time" : R.speed + "× speed"}. The times shown are the recorded wall-clock times, not this browser's. Not a live race.</div>` : "";
+  box.innerHTML = `${rec}<div class="race">${panel("stego", "STEGO · Drex only", "Drex " + esc(R.drex_model || ""))}${panel("llm", "LLM BASELINE", esc(R.llm_model || "unset") + (R.mock ? " (mock)" : ""))}</div>${verdict}`;
 }
 
 /* ---------- About ---------- */
@@ -1136,7 +1165,7 @@ function about() {
     ${card("", "The toy bricks", "The look is called \"Toy-Brick Prehistoric Triage\": thick outlines, hard shadows and studs on top of cards. The studs are decorative. We checked: the cards don't snap together.", "Design")}
   </div>
 
-  <div class="sec"><h2>What it can do</h2><span class="badge">8 things</span></div>
+  <div class="sec"><h2>What it can do</h2><span class="badge">9 things</span></div>
   <div class="cols3">
     ${card("g", "Upload and triage", "Drop in a text-based PDF or .txt. Drex answers 20 yes/no clause questions per page with probabilities, then plain code sorts the results. You get a progress bar and a cancel button.")}
     ${card("", "Clause board", "Four queues: urgent (a policy flag), found · confirm, human review (Drex is below its confidence threshold) and auto-cleared. Click a clause and see why.")}
@@ -1149,10 +1178,19 @@ function about() {
     ${card("", "Demo mode", "Hides the banners for a clean demo, but only when live Drex and real results are present. Mock and sample banners always stay, on purpose.")}
   </div>
 
+  <div class="sec"><h2>The Fossil Record, tested on Adobe's verify page</h2><span class="badge a">tested 14 Nov 2026 · test certificate</span></div>
+  <div class="card studs">${studs(4)}<p style="margin:0 0 8px;font-weight:500">We sealed a brief of the invented sample contract and dropped it on contentcredentials.org/verify. Exactly what the page showed:</p>
+    <ul class="tick wip"><li>Status <b>"Unrecognized"</b>, with the banner "The Content Credential issuer couldn't be recognized. This file may not come from where it claims to." Expected: the seal uses a generated test certificate that is not on Adobe's trust list.</li>
+      <li>Process: App or device used <b>"Stego Fossil Record Signer (TEST)"</b>. Actions: <b>"Created: The asset was created."</b></li>
+      <li>Ingredients: <b>"Stego mascot (Adobe Firefly)"</b>, marked <b>"No Content Credential"</b>. The mascot image carries no Content Credentials of its own, so Adobe's page shows no Firefly provenance for it.</li>
+      <li>About this Content Credential: <b>"Issued by: Stego (TEST ONLY)"</b>.</li>
+      <li>Not shown there: the decision record (model, probabilities, evidence pages, human decisions, ledger hash). Adobe's page shows standard fields only; Stego's own verifier reads the full record from the same seal.</li></ul>
+    <div class="lab" style="margin-top:8px;text-transform:none">The tamper test is real. The Forger Test button is simulated (a second test signer), and says so.</div></div>
+
   <div class="sec"><h2>How to use it</h2><span class="badge">about five minutes</span></div>
   <div class="card studs">${studs(4)}
     ${step(1, "Start the app", `Run it from the project folder, then open <code class="k">http://localhost:8000/</code>. Put your Drex key in <code class="k">.env</code> as <code class="k">NACE_API_KEY</code> (it is gitignored). Without a key you get mock Drex, clearly labelled.<pre class="cmd">.venv/bin/python app.py</pre>`)}
-    ${step(2, "Upload a contract", "Use the big red button on the Overview, the header button or the drop zone. Try <code class=\"k\">samples/sample_vendor_agreement.pdf</code> (5 pages) or the 30-page sample. Cancel any time. Scanned PDFs need OCR, which is not wired yet.")}
+    ${step(2, "Upload a contract", "Use the big red button on the Overview, the header button or the drop zone. Try <code class=\"k\">samples/sample_vendor_agreement.pdf</code> (5 pages) or the long samples in <code class="k">samples/</code>. Cancel any time. Scanned PDFs need OCR, which is not wired yet.")}
     ${step(3, "Read the clause board", "Start with the red and amber queues, then the human-review queue. Click a clause to see its probability and the highlighted passage. Approve or escalate to mark your own decision (kept in this browser, and sealed into the brief if you seal it).")}
     ${step(4, "Search the portfolio", "Open Portfolio Search, click the clauses you care about, and open any match in the Workspace.")}
     ${step(5, "Race it", "Open Live Race and pick the sample or your own PDF. The race first waits for Drex's per-minute rate window to clear, so the clock only starts when both sides are on equal footing. You need an LLM key in <code class=\"k\">.env</code> for the right-hand side.")}
@@ -1178,7 +1216,7 @@ function about() {
       <li>Live Drex via console.nace.ai, with real probabilities</li><li>Upload with progress, cancel and a page-by-page evidence highlight</li>
       <li>Live race against a real LLM, with a cool-down so it is fair</li><li>Sealed briefs and tamper checks (test certificate)</li><li>Print-ready review brief</li></ul></div>
     <div class="card a studs">${studs(3)}<h3>Not wired yet</h3><ul class="tick wip">
-      <li>NDI ingest and scanned PDFs: text-based PDFs only for now</li><li>The CUAD benchmark data is not in the repo, so Benchmark and Portfolio show sample data or dashes</li>
+      <li>Scanned PDFs: text-based PDFs only</li><li>The CUAD benchmark data is not in the repo, so Benchmark and Portfolio show sample data or dashes</li>
       <li>Adobe PDF Embed viewer and a Firefly mascot in the seal (the hook for the mascot is ready at <code class="k">assets/mascot_firefly.png</code>)</li>
       <li>A trusted signing certificate: today Adobe's verify page shows an untrusted signer</li></ul></div>
   </div>
@@ -1186,7 +1224,7 @@ function about() {
     <li>"Legally approved" or a legal-risk score. CUAD labels presence, not risk.</li><li>"No LLM at all". Document ingestion uses models; the claim is no general-purpose reasoning LLM after ingestion.</li>
     <li>That the seal proves a decision was correct. It proves who decided from what evidence, and whether the file changed.</li></ul></div>
 
-  <div class="card studs" style="margin-top:28px;background:var(--yellow)">${studs(4)}<p class="pun">Stego hunts the hidden clause. NDI shows the proof. Drex decides what deserves human attention. Content Credentials seal the record.</p>
+  <div class="card studs" style="margin-top:28px;background:var(--yellow)">${studs(4)}<p class="pun">Stego hunts the hidden clause. The highlighted page shows the proof. Drex decides what deserves human attention. Content Credentials seal the record.</p>
     <div class="lab" style="margin-top:10px;color:#111;text-transform:none;font-size:13px">Built for the Drexathon, track Apex Predator (Drex vs the Giants). Dinosaur puns per page: still counting. Reasoning-LLM calls in the Drex-only path: 0.</div></div>`;
 }
 
@@ -1218,7 +1256,7 @@ function printDoc(ct, q) {
     <div class="pd-h">2 · Page-by-page review guide</div>
     ${groups.map(g => `<div class="pd-page"><div class="pd-ph"><span class="pd-pg">${g.label.toUpperCase()}</span><b>${g.items.length} clause${g.items.length === 1 ? "" : "s"} to check</b></div>
       ${g.items.map(i => `<div class="pd-it ${i.k}"><div class="top"><b>${esc(i.c)} <span class="pd-q ${i.k}">${QN[i.k]}</span>${(() => { const d = ct.live ? ((D.decisions || {})[ct.id] || {})[i.c] : null; return d ? ` <span class="pd-q" style="background:#fff">${DEC_LABEL[d.decision]} · ${esc(d.reviewer)}</span>` : ""; })()}</b><span class="pp">p = ${i.p.toFixed(2)}</span></div>
-        ${i.text && i.p >= D.theta ? `<blockquote>${esc(clip(i.text, 260))}</blockquote>` : i.p < D.theta ? `<div style="font-size:9pt;color:#555;margin-top:3px">No supporting passage found (p below θ).</div>` : `<div style="font-size:9pt;color:#555;margin-top:3px">Evidence: chunk ${i.chunk ?? "–"} of the source text (page highlight needs the NDI pipeline).</div>`}</div>`).join("")}</div>`).join("") || "<p>Nothing to review.</p>"}
+        ${i.text && i.p >= D.theta ? `<blockquote>${esc(clip(i.text, 260))}</blockquote>` : i.p < D.theta ? `<div style="font-size:9pt;color:#555;margin-top:3px">No supporting passage found (p below θ).</div>` : `<div style="font-size:9pt;color:#555;margin-top:3px">Evidence: chunk ${i.chunk ?? "–"} of the source text (page highlight needs a page-mapped PDF).</div>`}</div>`).join("")}</div>`).join("") || "<p>Nothing to review.</p>"}
     <div class="pd-h">3 · Auto-cleared (confidently absent)</div>
     <div class="pd-clr">${q.g.map(c => `<div>✓ ${esc(c)}</div>`).join("") || "None"}</div>
     <div class="pd-note">Clause triage, not a legal-risk review. "Urgent" is a policy layer with no ground truth. Presence decided by Drex; no general-purpose reasoning LLM. Probability p is Drex's confidence that the clause is present on the cited page; queues use θ (presence) and τ (abstention).</div>`;

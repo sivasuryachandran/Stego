@@ -53,7 +53,7 @@ def extract_pages(name, data):
         reader = PdfReader(io.BytesIO(data))
         pages = [(pg.extract_text() or "").strip() for pg in reader.pages]
         if not any(pages):
-            raise ValueError("No extractable text (scanned PDF). Scanned input needs the NDI ingest step.")
+            raise ValueError("No extractable text (scanned PDF). Scanned PDFs are not supported: upload a text-based PDF.")
         return pages
     text = data.decode("utf-8", errors="replace")
     if "\f" in text:
@@ -199,6 +199,7 @@ def recent_drex_requests(now=None):
     return sorted(out)
 
 
+RACE_LLM_CAP_S = int(os.getenv("RACE_LLM_CAP_S", "300"))   # a race never waits longer than this for the LLM side
 RACE_RT = {}   # race id -> {"loop", "tasks"} so a race can be cancelled from another thread
 
 
@@ -269,8 +270,10 @@ def _race_main(rid, title, pages):
                 R["llm"].update(status="error", ms=ms_now(), error="LLM_API_KEY not set: the baseline can't run, so there is no race.")
                 return
             try:
-                out, _ = await run_llm(ct, cats, DEFINITIONS, llm, arm="race-llm")
+                out, _ = await asyncio.wait_for(run_llm(ct, cats, DEFINITIONS, llm, arm="race-llm"), timeout=RACE_LLM_CAP_S)
                 R["llm"].update(status="done", ms=ms_now(), calls=llm.calls, present={c: bool(out[c]["pred"]) for c in cats})
+            except asyncio.TimeoutError:
+                R["llm"].update(status="error", ms=ms_now(), error=f"The LLM did not finish within {RACE_LLM_CAP_S} s (a thinking model on a long contract). Stego's result stands.")
             except Exception as e:
                 R["llm"].update(status="error", ms=ms_now(), error=f"{type(e).__name__}: {str(e)[:160]}")
 

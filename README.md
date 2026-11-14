@@ -11,7 +11,7 @@ Hackathon: Drexathon, track **Apex Predator** (hand a frontier-LLM-style task's 
 Partner tools used: Nace Drex, DeepInfra (the LLM baseline), Adobe Content Credentials (C2PA) and Firefly (mascot).
 
 ## How it works
-1. **Ingest:** a text PDF or `.txt` is split into chunks (one per page in the app). NDI ingest and scanned PDFs are not wired yet.
+1. **Ingest:** a text PDF or `.txt` is split into chunks (one per page in the app). Scanned PDFs are not supported.
 2. **Decide (Drex):** a section sweep asks all 20 questions per chunk. Chunks with 0.2 < p < 0.9 get a paragraph drill-down.
 3. **Aggregate (plain code):** presence = max p over chunks; evidence = chunks ranked by p. Thresholds θ and τ are calibrated, not guessed.
 4. **Triage:** Urgent (a policy list, not ground truth), Found · confirm, Human review (below τ), Auto-cleared. Clauses far below θ read "likely absent".
@@ -103,16 +103,24 @@ How to read this:
 .venv/bin/python fossil.py demo           # seal the latest upload, verify, tamper one pixel, verify again (fails)
 .venv/bin/python fossil.py verify FILE.png
 ```
-- Signing uses a generated **TEST** certificate chain in `keys/` (gitignored). Adobe's verifier shows an **untrusted signer**. Production needs a certificate from the C2PA trust list.
+- Signing uses a generated **TEST** certificate chain in `keys/` (gitignored). Adobe's verifier shows the file as **"Unrecognized"** ("The Content Credential issuer couldn't be recognized"). Production needs a certificate from the C2PA trust list.
 - The claim is "modified or stripped after sealing", never who changed it.
 - Rehearsal results: a one-pixel tamper fails verification; the in-app **Forger Test** is **simulated** (a second test signer re-signs an edited brief) and is labelled as such.
   A real edit in Photoshop on the web exported a file with **no credentials**, which the app reports as "No credentials".
+- **Tested on Adobe's verify page** (contentcredentials.org/verify, 14 Nov 2026, a sealed brief of the invented sample contract, test certificate). It showed:
+  status **"Unrecognized"** with the banner "The Content Credential issuer couldn't be recognized. This file may not come from where it claims to";
+  Process: App or device used **"Stego Fossil Record Signer (TEST)"**, Actions **"Created: The asset was created"**;
+  Ingredients: **"Stego mascot (Adobe Firefly)"** marked **"No Content Credential"**; About this Content Credential: **"Issued by: Stego (TEST ONLY)"**.
+  Adobe's page shows standard fields only: the decision record (model, probabilities, evidence pages, human decisions, ledger hash) is read by Stego's own verifier from the same seal.
 - `assets/mascot_firefly.png` is a Firefly-generated image embedded as an ingredient. It is a re-saved copy, so it does not carry Firefly's own credentials.
 
 ## Limits
 - Weakest categories (F1): Warranty Duration 0.50, Uncapped Liability 0.60, Non-Transferable License 0.62, Post-Termination Services 0.64.
 - CUAD labels clause presence, not risk or acceptability. The "Urgent" list is a policy flag in `ui/index.html`, not ground truth.
-- The benchmark scores yes/no presence on 20 categories of one dataset, English, in plain text. Scanned PDFs and NDI ingest are not wired.
+- **Text-based PDFs and .txt only.** Scanned PDFs are not supported. The benchmark scores yes/no presence on 20 categories of one dataset, in English plain text.
+- **The LLM baseline is an open 27B model, not a frontier model:** Qwen3.8-27B via DeepInfra, in thinking mode (arm A, and the LLM step of arm C). Its slowness is mostly reasoning tokens, so a frontier model, or Qwen with thinking off, would narrow the speed gap. No frontier arm was run.
+- **One source for the Drex-only time:** every Drex-only timing quoted here is the median in `runs/final/results.json` (arm B, `latency_p50_ms` = 6,945 ms, i.e. **6.9 s**). The Live Race and the recorded replay show single runs of one contract, not that median.
+- **The Forger Test button is simulated:** a second test signer stands in for an editing tool. It is labelled that way in the app. A real Photoshop export carried no credentials at all and is reported as such.
 - Mock mode output is not real Drex output. The UI labels it, and mock seals say `mode: mock`.
 - The Content Credentials seal uses a test certificate and proves provenance of the file, not the correctness of the decision.
 - Not built: Adobe PDF Embed API viewer, Express template.
