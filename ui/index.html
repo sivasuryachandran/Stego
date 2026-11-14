@@ -495,7 +495,14 @@ async function recordDecision(ct, clause, decision) {
   if (!name) { toast("Add your name first: every decision is recorded with who made it."); const i = document.getElementById("rvname"); if (i) i.focus(); return; }
   try { localStorage.setItem("stego_reviewer", name); } catch (e) { /* storage blocked: still record */ }
   try { const row = await postJSON("/api/decision", { id: ct.id, clause, decision, reviewer: name });
-    (D.decisions[ct.id] = D.decisions[ct.id] || {})[clause] = row; toast(`Recorded: ${DEC_LABEL[decision]} by ${name}`); workspace(); }
+    (D.decisions[ct.id] = D.decisions[ct.id] || {})[clause] = row;
+    const fl = state.flagged || [], dn = D.decisions[ct.id], i0 = fl.indexOf(clause);
+    const next = [...fl.slice(i0 + 1), ...fl.slice(0, i0 + 1)].find(c => !dn[c]);      // next clause still waiting, after this one
+    state.og = state.og || {}; state.og.d = true;                                        // open "Reviewed" so the move is visible
+    const left = fl.filter(c => !dn[c]).length;
+    if (next) state.sel = next;
+    toast(`✓ ${clause}: ${DEC_LABEL[decision]} → moved to Reviewed. ${left ? left + " left to review." : "All flagged clauses reviewed."}`);
+    workspace(); document.querySelector(".ws")?.scrollIntoView({ behavior: "smooth", block: "start" }); }
   catch (e) { toast("Could not record the decision: " + e.message); }
 }
 
@@ -771,6 +778,13 @@ function workspace() {
   const item = c => { const x = ct.clauses[c], k = queue(c, x.p);
     return `<button class="q ${k} ${c === state.sel ? "sel" : ""}" data-c="${esc(c)}"><div class="row"><span>${esc(c)}</span><span class="badge">${loc(x)}</span></div>
       <div class="meter"><i style="width:${x.p * 100}%"></i></div><div class="m"><span>${k === "u" ? (x.p < D.theta ? "LIKELY ABSENT" : "UNCERTAIN") : k === "r" ? "URGENT (POLICY)" : "FOUND - CONFIRM"}</span><span>p=${x.p.toFixed(2)}</span></div></button>`; };
+  const decOf = c => ct.live ? ((D.decisions || {})[ct.id] || {})[c] : null;
+  state.flagged = flagged;
+  const pend = k => q[k].filter(c => !decOf(c));                       // clauses still waiting for a person
+  const doneList = cats.filter(c => decOf(c)).sort((a, b) => decOf(b).ts - decOf(a).ts);   // newest decision first
+  const DONE_ICON = { confirmed: "✓", not_present: "✗", escalated: "⚑" };
+  const doneTile = c => { const d = decOf(c), x = ct.clauses[c];
+    return `<button class="lt ${DEC_CLS[d.decision] === "r" ? "r" : DEC_CLS[d.decision] === "g" ? "g" : "u"} ${c === state.sel ? "sel" : ""}" data-c="${esc(c)}"><span class="lt-n">${esc(c)}</span><span class="lt-p">${loc(x).replace("Page ", "p.").replace("Chunk ", "c.")}</span><span class="lt-v" style="font-weight:700">${DONE_ICON[d.decision]} ${DEC_LABEL[d.decision]} · ${esc(d.reviewer)}</span></button>`; };
   const tile = c => { const x = ct.clauses[c], k = queue(c, x.p);
     return `<button class="lt ${k} ${c === state.sel ? "sel" : ""}" data-c="${esc(c)}"><span class="lt-n">${esc(c)}</span><span class="lt-p">${loc(x).replace("Page ", "p.").replace("Chunk ", "c.")}</span><span class="lt-m"><i style="width:${x.p * 100}%"></i></span><span class="lt-v">${k === "u" ? "NOT SURE" : x.p >= D.theta ? "YES" : "NO"} ${Math.round(conf(x.p) * 100)}%</span></button>`; };
   const nums = ledgerNums();
@@ -806,6 +820,7 @@ function workspace() {
           const word = unsure ? "NOT SURE" : yes ? "YES" : "NO", col = unsure ? "var(--amber)" : yes ? "var(--green)" : "var(--ink)";
           const sub = unsure ? `Leans ${yes ? "yes" : "no"}. A person should decide.` : yes ? "This clause is in the contract." : "This clause was not found.";
           return `<div class="card" style="background:#fff;margin:0 0 14px;padding:14px 16px;display:flex;gap:20px;align-items:center;flex-wrap:wrap"><div style="font:800 60px/1 var(--head);color:${col}">${word}</div><div><div style="font:700 30px/1.1 var(--head)">${c}% confident</div><div style="font:500 15px var(--body);margin-top:6px">${sub}</div></div></div>`; })()}
+        ${dec ? `<div class="card" style="margin:0 0 12px;padding:10px 14px;box-shadow:none;background:${dec.decision === "confirmed" ? "var(--green)" : dec.decision === "escalated" ? "var(--red)" : "var(--ink)"};color:${dec.decision === "not_present" ? "#fff" : "#111"}"><b style="font:800 20px var(--head)">${DONE_ICON[dec.decision]} ${DEC_LABEL[dec.decision].toUpperCase()}</b><div style="font:500 13px var(--body)">by ${esc(dec.reviewer)} · done. You can change it below.</div></div>` : ""}
         <div class="lab" style="margin:12px 0 6px">Your decision (written to the decision ledger)</div>
         <input id="rvname" class="rvname" placeholder="Your name" maxlength="60" value="${esc(reviewerName())}" ${ct.live ? "" : "disabled"}>
         <div style="display:flex;gap:10px;flex-wrap:wrap">
@@ -814,8 +829,11 @@ function workspace() {
           <button class="btn ${dec?.decision === "escalated" ? "red" : ""}" data-d="escalated" ${ct.live ? "" : "disabled"}>Escalate</button></div>
         <div class="lab" style="margin-top:10px;text-transform:none;font-size:12px">${dec ? `Recorded: <b>${DEC_LABEL[dec.decision]}</b> by ${esc(dec.reviewer)} at ${esc(dec.at.replace("T", " ").replace("+00:00", " UTC"))}` : ct.live ? "Not decided yet. Stego routes; a person decides." : "Upload a contract to record decisions: sample contracts have no ledger."}</div>
         </div>
-  <div class="card studs ldg" id="board">${studs(4)}<div class="ldg-h"><h3>Clause board</h3><span class="lab">${cats.length} clauses · open a group, then click a clause</span></div>
-    ${[["r", "Urgent (policy flag)"], ["a", "Found · confirm"], ["u", "Human review"], ["g", "Auto-cleared"]].filter(([k]) => q[k].length).map(([k, t]) => `<details class="bgrp ${k}" data-g="${k}" ${(state.og || {})[k] ? "open" : ""} style="margin-top:10px"><summary style="cursor:pointer;font:700 15px var(--head);padding:6px 0"><span class="badge ${k === "r" ? "r" : k === "g" ? "g" : k === "a" ? "a" : ""}">${q[k].length}</span> ${t}</summary><div class="lgrid" style="margin-top:8px">${q[k].map(tile).join("")}</div></details>`).join("")}</div>
+  <div class="card studs ldg" id="board">${studs(4)}<div class="ldg-h"><h3>Clause board</h3><span class="lab">${doneList.length} of ${flagged.length + cats.filter(c => q.g.includes(c) && decOf(c)).length} flagged clauses reviewed</span></div>
+    <div class="meter" style="height:10px;margin:6px 0 4px"><i style="width:${flagged.length ? Math.min(100, doneList.length / flagged.length * 100) : 0}%;background:var(--green)"></i></div>
+    ${[["r", "Urgent (policy flag)"], ["a", "Found · confirm"], ["u", "Human review"], ["g", "Auto-cleared"]].filter(([k]) => pend(k).length).map(([k, t]) => `<details class="bgrp ${k}" data-g="${k}" ${(state.og || {})[k] ? "open" : ""} style="margin-top:10px"><summary style="cursor:pointer;font:700 15px var(--head);padding:6px 0"><span class="badge ${k === "r" ? "r" : k === "g" ? "g" : k === "a" ? "a" : ""}">${pend(k).length}</span> ${t}</summary><div class="lgrid" style="margin-top:8px">${pend(k).map(tile).join("")}</div></details>`).join("")}
+    ${doneList.length ? `<details class="bgrp d" data-g="d" ${(state.og || {}).d ? "open" : ""} style="margin-top:10px"><summary style="cursor:pointer;font:700 15px var(--head);padding:6px 0"><span class="badge g">${doneList.length}</span> ✓ Reviewed (done)</summary><div class="lgrid" style="margin-top:8px">${doneList.map(doneTile).join("")}</div></details>` : ""}
+    ${flagged.length && !flagged.some(c => !decOf(c)) ? `<div class="banner real" style="margin:12px 0 0"><b>All flagged clauses reviewed.</b> Open Review Brief to check and seal it.</div>` : ""}</div>
     </div></div>
   
   <div style="margin:14px 0 24px"><button class="btn dark" id="wsSeal">Seal brief</button></div>
@@ -1331,7 +1349,8 @@ function brief() {
   cats.forEach(c => q[queue(c, ct.clauses[c].p)].push(c));
   const byP = (a, b) => ct.clauses[b].p - ct.clauses[a].p; q.r.sort(byP); q.a.sort(byP); q.u.sort(byP);
   const S = SEALS[ct.id], canSeal = !!(ct.live && D.server && D.server.fossil);
-  const hr = c => { const d = ct.live ? ((D.decisions || {})[ct.id] || {})[c] : null; return d ? ` <span class="badge ${DEC_CLS[d.decision]}">${DEC_LABEL[d.decision]} · ${esc(d.reviewer)}</span>` : ""; };
+  const hr = c => { const d = ct.live ? ((D.decisions || {})[ct.id] || {})[c] : null; return d ? ` <span class="badge ${DEC_CLS[d.decision]}" style="font-size:13px">${{ confirmed: "✓", not_present: "✗", escalated: "⚑" }[d.decision]} ${DEC_LABEL[d.decision]} · ${esc(d.reviewer)}</span>` : (ct.live && queue(c, ct.clauses[c].p) !== "g" ? ` <span class="badge" style="background:#fff">pending review</span>` : ""); };
+  const decs = ct.live ? ((D.decisions || {})[ct.id] || {}) : {}, nFlag = q.r.length + q.a.length + q.u.length, nDone = [...q.r, ...q.a, ...q.u].filter(c => decs[c]).length;
   const t = (l, n, ic) => `<div class="card" style="margin:0;padding:12px 14px"><div class="lab">${l}</div><div class="metric" style="color:${ic}">${String(n).padStart(2, "0")}</div></div>`;
   const card = (c, k) => { const x = ct.clauses[c], e = x.evidence[0];
     return `<div class="bi ${k}"><div><b class="head" style="font-size:17px">${esc(c)}</b> <span class="badge ${k === "r" ? "r" : "a"}">${loc(x)}</span>${hr(c)}
@@ -1350,6 +1369,7 @@ function brief() {
     <span class="badge g">Brief</span> <span class="lab">${D.sample ? "sample data" : "run " + esc(D.run)}</span>${S ? ` <span class="badge ${S.verify.valid ? "g" : "r"}">Sealed ✓</span>` : ""}
     <h1 style="margin:10px 0 2px;text-transform:uppercase;font-size:42px">Contract review brief</h1><div style="font:500 18px var(--head);color:var(--mut)">${esc(ct.title)}</div>
     <div class="card" style="position:absolute;top:36px;right:36px;padding:10px 14px;margin:0;box-shadow:none;font:500 11px/1.7 var(--mono)">ENGINE: ${esc(ct.live && D.server ? D.server.drex_model + (ct.mock ? " (mock)" : "") : D.drex_model)}<br>θ=${D.theta} · τ=${(+D.tau).toFixed(2)}<br>REASONING-LLM CALLS: 0</div>
+    ${ct.live ? `<div class="card noprint" style="margin:18px 0 0;padding:10px 14px;box-shadow:none"><b>${nDone} of ${nFlag} flagged clauses reviewed by a person</b>${nDone === nFlag && nFlag ? " ✓ ready to seal" : ""}<div class="meter" style="height:10px;margin-top:6px"><i style="width:${nFlag ? nDone / nFlag * 100 : 0}%;background:var(--green)"></i></div></div>` : ""}
     <div class="grid g4" style="margin:28px 0">${t("Urgent (policy)", q.r.length, "var(--red-d)")}${t("Found · confirm", q.a.length, "var(--amber-d)")}${t("Auto-cleared", q.g.length, "var(--green-d)")}${t("Human review", q.u.length, "var(--mut)")}</div>
     <div class="band r"><span>Urgent · send to counsel</span><span class="badge">${q.r.length} items</span></div><div class="bsec">${q.r.map(c => card(c, "r")).join("") || '<div class="lab" style="padding:8px">None</div>'}</div>
     <div class="band a"><span>Found · confirm</span><span class="badge">${q.a.length} items</span></div><div class="bsec">${q.a.map(c => card(c, "a")).join("") || '<div class="lab" style="padding:8px">None</div>'}</div>
