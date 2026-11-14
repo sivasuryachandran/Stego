@@ -27,7 +27,7 @@ LIVE = os.path.join(ROOT, "runs", "live")
 BRIEFS = os.path.join(LIVE, "briefs")
 URGENT = {"Uncapped Liability", "Change Of Control", "Liquidated Damages", "Non-Compete"}
 VERIFY_URL = "https://contentcredentials.org/verify"
-RENDER_VERSION = 3  # bump when render_brief changes, so older seals are not falsely flagged as edited
+RENDER_VERSION = 4  # bump when render_brief changes, so older seals are not falsely flagged as edited
 MASCOT = os.path.join(ROOT, "assets", "mascot_firefly.png")  # a Firefly image; its own Content Credentials join the chain
 
 
@@ -155,7 +155,15 @@ def render_brief(rec):
               ("FOUND · CONFIRM", A, [d for d in rec["flagged"] if d["queue"] == "review"]),
               ("HUMAN · READ AND DECIDE", GR, [d for d in rec["flagged"] if d["queue"] == "human"])]
     rows = sum(max(1, len(g[2])) for g in groups)
-    H = 520 + rows * 74 + 3 * 70 + 130
+    cl_lines, cur = [], ""
+    for w in (f"Cleared as absent ({len(rec['cleared'])}): " + ", ".join(rec["cleared"])).split(" "):
+        t = (cur + " " + w).strip()
+        if cur and _font(17).getlength(t) > W - 180:
+            cl_lines.append(cur); cur = w
+        else:
+            cur = t
+    cl_lines.append(cur)
+    H = 520 + rows * 74 + 3 * 70 + 130 + (len(cl_lines) - 1) * 24
     im = Image.new("RGB", (W, H), CANVAS)
     d = ImageDraw.Draw(im)
     f_t, f_h, f_b, f_s, f_m = _font(44, True), _font(26, True), _font(22), _font(17), _mono(17)
@@ -192,8 +200,9 @@ def render_brief(rec):
             d.line([100, y + 66, W - 100, y + 66], fill=GR, width=2)
             y += 74
         y += 14
-    d.text((80, y + 8), f"Cleared as absent ({len(rec['cleared'])}): " + ", ".join(rec["cleared"])[:300], font=f_s, fill=INK)
-    y += 64
+    for i, ln in enumerate(cl_lines):
+        d.text((80, y + 8 + i * 24), ln, font=f_s, fill=INK)
+    y += 64 + (len(cl_lines) - 1) * 24
     d.rectangle([80, y, W - 80, y + 150], fill=(255, 255, 255), outline=INK, width=3)
     if os.path.exists(MASCOT):
         m = Image.open(MASCOT).convert("RGBA")
