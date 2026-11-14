@@ -456,7 +456,7 @@ const armB = () => D.summary.find(s => s.arm[0] === "B") || {};
 const loc = c => { const e = c.evidence[0]; return e ? (e.page ? "Page " + e.page : "Chunk " + e.chunk) : "–"; };
 
 /* ---------- shell ---------- */
-const TABS = { landing: "Overview", workspace: "Workspace", brief: "Review Brief", race: "Live Race", portfolio: "Portfolio Search", bench: "Benchmark", about: "About" };
+const TABS = { landing: "Overview", workspace: "Workspace", brief: "Review Brief", race: "Live Race", bench: "Benchmark", portfolio: "Portfolio Search", about: "About" };
 function toast(t) { const el = document.createElement("div"); el.className = "toast"; el.textContent = t; document.body.append(el); setTimeout(() => el.remove(), 3200); }
 const ROUTES = { landing: "/", workspace: "/workspace", race: "/race", portfolio: "/portfolio", bench: "/benchmark", brief: "/brief", about: "/about" };
 const fromHash = () => { const h = location.hash.replace(/^#/, "") || "/"; return Object.keys(ROUTES).find(k => ROUTES[k] === h) || "landing"; };
@@ -889,7 +889,7 @@ function portfolio() {
   const nRev = c => cats.filter(k => ["r", "a"].includes(queue(k, c.clauses[k].p))).length;
   const nHum = c => cats.filter(k => queue(k, c.clauses[k].p) === "u").length;
   hits.sort((a, b) => nHum(b[0]) + nRev(b[0]) - nHum(a[0]) - nRev(a[0]));
-  const PER = 5, pages = Math.max(1, Math.ceil(hits.length / PER)); state.page = Math.min(state.page || 1, pages);
+  const PER = 10, pages = Math.max(1, Math.ceil(hits.length / PER)); state.page = Math.min(state.page || 1, pages);
   const shown = hits.slice((state.page - 1) * PER, state.page * PER);
   $("#view").innerHTML = `
   <div class="card studs" style="background:#f0edec">${studs(5)}
@@ -903,12 +903,10 @@ function portfolio() {
     <div class="found" style="display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;align-items:center"><span>Found <b style="text-decoration:underline">${hits.length}</b> matching contract${hits.length === 1 ? "" : "s"}${f.size ? " with " + [...f].map(esc).join(" AND ") : ""}.</span><button class="btn sm" id="csv">Export CSV</button></div></div>
   <div class="rbar"><div class="rbar-l"><span class="badge">${hits.length} contract${hits.length === 1 ? "" : "s"}</span><span class="lab">Sorted by: <b style="color:var(--ink)">clauses needing attention</b></span></div>
     <div class="legend" title="Each dot is one clause, always in the same order">${[["g", "Auto-cleared"], ["a", "Found · confirm"], ["r", "Urgent (policy)"], ["u", "Uncertain / human"]].map(([k, t]) => `<span class="lg"><i class="${k}"></i>${t}</span>`).join("")}</div></div>
-  <div class="row-h"><span>Contract</span><span>Queue summary</span><span>${cats.length}-clause fingerprint</span><span>Open</span></div>
   ${shown.map(([c, i]) => { const worst = cats.some(k => queue(k, c.clauses[k].p) === "r");
-    return `<div class="row-c"><div><b class="head" style="font-size:18px">${esc(c.title)}</b><div class="lab">${c.pages ? c.pages + " pages · " : ""}${sec(c.ms)}${c.live ? " · " + esc(cacheCounts(c)) : ""}</div></div>
-      <div><span class="badge ${worst ? "r" : nRev(c) ? "a" : "g"}">${nRev(c)} found · ${nHum(c)} human</span></div>
-      <div><span class="fp" title="Fixed order of the ${cats.length} categories">${cats.map(k => `<i class="${queue(k, c.clauses[k].p)}" title="${esc(k)} p=${c.clauses[k].p.toFixed(2)}"></i>`).join("")}</span></div>
-      <div style="text-align:right"><button class="btn sm" data-v="${i}">View →</button></div></div>`; }).join("") || '<div class="card">No matches.</div>'}
+    return `<details class="card pf-row" style="margin:0 0 10px;padding:0"><summary style="cursor:pointer;list-style-position:inside;padding:12px 16px;display:flex;align-items:center;gap:12px;flex-wrap:wrap"><b class="head" style="font-size:18px;flex:1;min-width:200px">${esc(c.title)}</b><span class="badge ${worst ? "r" : nRev(c) ? "a" : "g"}">${nRev(c)} found · ${nHum(c)} human</span><span class="lab">click to open</span></summary>
+      <div style="padding:4px 16px 14px;border-top:2px dashed var(--ink)"><div class="lab" style="margin:10px 0">${c.pages ? c.pages + " pages · " : ""}${sec(c.ms)}${c.live ? " · " + esc(cacheCounts(c)) : ""}</div>
+        <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap"><span class="fp" title="Fixed order of the ${cats.length} categories">${cats.map(k => `<i class="${queue(k, c.clauses[k].p)}" title="${esc(k)} p=${c.clauses[k].p.toFixed(2)}"></i>`).join("")}</span><button class="btn sm" data-v="${i}">Open in Workspace →</button></div></div></details>`; }).join("") || '<div class="card">No matches.</div>'}
   <div class="card" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;background:var(--grey)"><span class="lab">Display: ${hits.length ? (state.page - 1) * PER + 1 : 0} – ${Math.min(state.page * PER, hits.length)} of ${hits.length} [page ${state.page} / ${pages}]</span>
     <div style="display:flex;gap:6px"><button class="btn sm" data-pg="${state.page - 1}" ${state.page <= 1 ? "disabled" : ""}>PREV</button>${Array.from({ length: pages }, (_, i) => `<button class="btn sm ${i + 1 === state.page ? "dark" : ""}" data-pg="${i + 1}">${i + 1}</button>`).join("")}<button class="btn sm" data-pg="${state.page + 1}" ${state.page >= pages ? "disabled" : ""}>NEXT</button></div></div>
   <div class="lab" style="margin-top:14px">Each dot is one clause, always in config.CATEGORIES order. Hover a dot for the clause name and its probability.</div>`;
