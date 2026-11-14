@@ -123,9 +123,9 @@ How to read this:
 - **Tested on Adobe's verify page** (contentcredentials.org/verify, 14 Nov 2026, a sealed brief of the invented sample contract, test certificate). It showed:
   status **"Unrecognized"** with the banner "The Content Credential issuer couldn't be recognized. This file may not come from where it claims to";
   Process: App or device used **"Stego Fossil Record Signer (TEST)"**, Actions **"Created: The asset was created"**;
-  Ingredients: **"Stego mascot (Adobe Firefly)"** marked **"No Content Credential"**; About this Content Credential: **"Issued by: Stego (TEST ONLY)"**.
+  Ingredients: **"Stego mascot (Adobe Firefly)"** marked **"No Content Credential"** (that run used an earlier re-saved copy of the mascot, since replaced; not re-tested on Adobe's page); About this Content Credential: **"Issued by: Stego (TEST ONLY)"**.
   Adobe's page shows standard fields only: the decision record (model, probabilities, evidence pages, human decisions, ledger hash) is read by Stego's own verifier from the same seal.
-- `assets/mascot_firefly.png` is a Firefly-generated image embedded as an ingredient. It is a re-saved copy, so it does not carry Firefly's own credentials.
+- `assets/mascot_firefly.png` is the original file downloaded from Adobe Firefly, unmodified, with its own Content Credentials (generator Adobe Firefly, issuer Adobe Inc.). Every seal embeds it as an ingredient and draws it in the seal box.
 
 ## Limits
 - Weakest categories (F1): Warranty Duration 0.50, Uncapped Liability 0.60, Non-Transferable License 0.62, Post-Termination Services 0.64.
