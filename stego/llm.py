@@ -38,8 +38,16 @@ def parse(text, categories):
 
 
 class LLMClient:
-    def __init__(self, ledger, cache):
+    def __init__(self, ledger, cache, profile=None):
+        """profile (optional): override the LLM settings for this client only, e.g. the Live Race can use a faster model than the benchmark baseline.
+        Default (None) reads config.LLM_*, exactly as before."""
         self.ledger, self.cache = ledger, cache
+        p = profile or {}
+        self.provider = p.get("provider", config.LLM_PROVIDER)
+        self.model = p.get("model", config.LLM_MODEL)
+        self.base_url = p.get("base_url", config.LLM_BASE_URL)
+        self.api_key = p.get("api_key", config.LLM_API_KEY)
+        self.temperature = p.get("temperature", config.LLM_TEMPERATURE)
         self.http = httpx.AsyncClient(timeout=300)
         self.calls = 0
         self.in_tokens = 0
@@ -52,7 +60,7 @@ class LLMClient:
         prompt = build_prompt(chunks, categories, definitions)
         if str(arm).startswith("race"):   # unique prefix so provider-side prompt caching can't speed up a repeated contract
             prompt = f"Run id: {uuid.uuid4().hex}\n\n" + prompt
-        key = self.cache.key("llm", config.LLM_PROVIDER, config.LLM_MODEL, prompt)
+        key = self.cache.key("llm", self.provider, self.model, prompt)
         cached = self.cache.get(key)
         t0 = time.perf_counter()
         if cached is not None:
@@ -69,7 +77,7 @@ class LLMClient:
         self.calls += 1
         self.in_tokens += usage.get("in", 0)
         self.out_tokens += usage.get("out", 0)
-        self.ledger.log(kind="llm", arm=arm, contract=contract, status=status, model=config.LLM_MODEL,
+        self.ledger.log(kind="llm", arm=arm, contract=contract, status=status, model=self.model,
                         n_categories=len(categories), latency_ms=round(ms, 1),
                         input_tokens=usage.get("in", 0), output_tokens=usage.get("out", 0), error=usage.get("error"))
         if status == "error":
@@ -83,28 +91,28 @@ class LLMClient:
         delay = 2.0
         for _ in range(5):
             try:
-                if config.LLM_PROVIDER == "anthropic":
-                    body = {"model": config.LLM_MODEL, "max_tokens": config.LLM_MAX_TOKENS, "system": SYSTEM,
+                if self.provider == "anthropic":
+                    body = {"model": self.model, "max_tokens": config.LLM_MAX_TOKENS, "system": SYSTEM,
                             "messages": [{"role": "user", "content": prompt}]}
-                    if config.LLM_TEMPERATURE != "":
-                        body["temperature"] = float(config.LLM_TEMPERATURE)
+                    if self.temperature != "":
+                        body["temperature"] = float(self.temperature)
                     r = await self.http.post(
                         "https://api.anthropic.com/v1/messages", json=body,
-                        headers={"x-api-key": config.LLM_API_KEY, "anthropic-version": "2023-06-01"})
+                        headers={"x-api-key": self.api_key, "anthropic-version": "2023-06-01"})
                     if r.status_code == 200:
                         j = r.json()
                         text = "".join(b.get("text", "") for b in j["content"] if b.get("type") == "text")
                         u = j.get("usage", {})
                         return text, {"in": u.get("input_tokens", 0), "out": u.get("output_tokens", 0)}, "ok"
                 else:
-                    body = {"model": config.LLM_MODEL, "response_format": {"type": "json_object"},
+                    body = {"model": self.model, "response_format": {"type": "json_object"},
                             "messages": [{"role": "system", "content": SYSTEM},
                                          {"role": "user", "content": prompt}]}
-                    if config.LLM_TEMPERATURE != "":
-                        body["temperature"] = float(config.LLM_TEMPERATURE)
+                    if self.temperature != "":
+                        body["temperature"] = float(self.temperature)
                     r = await self.http.post(
-                        f"{config.LLM_BASE_URL}/chat/completions", json=body,
-                        headers={"Authorization": f"Bearer {config.LLM_API_KEY}"})
+                        f"{self.base_url}/chat/completions", json=body,
+                        headers={"Authorization": f"Bearer {self.api_key}"})
                     if r.status_code == 200:
                         j = r.json()
                         u = j.get("usage", {})

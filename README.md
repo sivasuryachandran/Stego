@@ -50,6 +50,7 @@ Both providers serve the same `/v1/systemone` contract. `DREX_API_KEY` takes pri
 | `DREX_QUESTIONS_PER_REQ`, `DREX_MAX_INFLIGHT` | Questions per request (default 20; DeepInfra needs 10) and concurrent requests (default 8). See `docs/DEPLOY_NOTES.md`. |
 | `DREX_PRICE_PER_M_INPUT` | Used for cost per contract. |
 | `LLM_PROVIDER`, `LLM_BASE_URL`, `LLM_MODEL`, `LLM_API_KEY` | The LLM baseline (arms A and C). Any OpenAI-compatible endpoint, or `anthropic`. |
+| `RACE_LLM_MODEL`, `RACE_LLM_BASE_URL`, `RACE_LLM_API_KEY`, `RACE_LLM_TEMPERATURE` | Optional: a different LLM for the **Live Race page only** (for example a faster model for the demo). The benchmark baseline stays `LLM_*`. The race labels which model it used, and says its times are not the benchmark's. |
 | `LLM_PRICE_PER_M_INPUT`, `LLM_PRICE_PER_M_OUTPUT`, `LLM_TEMPERATURE`, `LLM_ARM_LABEL` | Cost and labelling for the baseline. |
 | `MOCK=1` | Force the offline mock for the harness. |
 

@@ -386,6 +386,16 @@ def recent_drex_requests(now=None):
     return sorted(out)
 
 
+def race_llm_profile():
+    """Live Race only: RACE_LLM_MODEL / RACE_LLM_BASE_URL / RACE_LLM_API_KEY (and optional RACE_LLM_TEMPERATURE, default empty) pick a different LLM for
+    the race than the benchmark baseline (config.LLM_*). Unset: the race uses the baseline, as before."""
+    m = os.getenv("RACE_LLM_MODEL")
+    if not m:
+        return None
+    return {"provider": "openai", "model": m, "base_url": os.getenv("RACE_LLM_BASE_URL", config.LLM_BASE_URL), "api_key": os.getenv("RACE_LLM_API_KEY", config.LLM_API_KEY),
+            "temperature": os.getenv("RACE_LLM_TEMPERATURE", "")}
+
+
 RACE_LLM_CAP_S = int(os.getenv("RACE_LLM_CAP_S", "300"))   # a race never waits longer than this for the LLM side
 RACE_RT = {}   # race id -> {"loop", "tasks"} so a race can be cancelled from another thread
 
@@ -409,7 +419,7 @@ def _race_main(rid, title, pages):
         ct = build_contract(title, pages)
         cats = config.CATEGORIES
         cache = Cache(os.path.join(LIVE, "cache.sqlite"), enabled=False)
-        drex, llm = DrexClient(LEDGER, cache), LLMClient(LEDGER, cache)
+        drex, llm = DrexClient(LEDGER, cache), LLMClient(LEDGER, cache, race_llm_profile())
         try:
             await drex.ensure_model()
         except Exception as e:
@@ -516,7 +526,7 @@ def state():
     for r in led:
         r.pop("probs", None)
     return {"mode": "mock" if config.MOCK else "live", "drex_model": config.DREX_MODEL, "drex_provider": "Mock Drex" if config.MOCK else config.DREX_PROVIDER, "theta": theta, "tau": tau,
-            "thresholds_frozen": frozen, "llm_model": config.LLM_MODEL or None, "llm_ready": bool(config.LLM_API_KEY) or config.MOCK, "fossil": fossil is not None, "drex_price_per_m": config.DREX_PRICE_PER_M_INPUT, "categories": config.CATEGORIES, "contracts": live, "decisions": latest_decisions(), "ledger": led[-500:]}
+            "thresholds_frozen": frozen, "llm_model": config.LLM_MODEL or None, "race_llm_model": (race_llm_profile() or {}).get("model") or config.LLM_MODEL or None, "llm_ready": bool(config.LLM_API_KEY or os.getenv("RACE_LLM_API_KEY")) or config.MOCK, "fossil": fossil is not None, "drex_price_per_m": config.DREX_PRICE_PER_M_INPUT, "categories": config.CATEGORIES, "contracts": live, "decisions": latest_decisions(), "ledger": led[-500:]}
 
 
 class H(BaseHTTPRequestHandler):
@@ -695,7 +705,7 @@ class H(BaseHTTPRequestHandler):
             cancel_races()   # only one race at a time
             rid = uuid.uuid4().hex[:8]
             title = os.path.splitext(name)[0]
-            RACES[rid] = {"id": rid, "title": title, "pages": len(pages), "mock": config.MOCK, "llm_model": config.LLM_MODEL or "(unset)",
+            RACES[rid] = {"id": rid, "title": title, "pages": len(pages), "mock": config.MOCK, "llm_model": (race_llm_profile() or {}).get("model") or config.LLM_MODEL or "(unset)",
                           "drex_model": config.DREX_MODEL, "started": time.time(), "finished": False,
                           "cold_llm": True, "phase": "cooling", "stego": {"status": "running", "decisions": 0}, "llm": {"status": "running"}}
             threading.Thread(target=_race_main, args=(rid, title, pages), daemon=True).start()

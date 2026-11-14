@@ -1082,7 +1082,7 @@ function raceView() {
     ${!srv ? '<div class="banner sample">Start the app server (<b>.venv/bin/python app.py</b>) to race.</div>'
       : mock ? '<div class="banner sample">MOCK MODE: Drex answers come from keyword heuristics and the LLM answers are random after a 2 to 4 second sleep. These timings are NOT a real comparison. Set DREX_API_KEY and LLM_API_KEY, then restart app.py.</div>'
       : !srv.llm_ready ? '<div class="banner sample">LLM_API_KEY is not set, so the baseline side cannot run. Set it (and LLM_MODEL) and restart app.py.</div>' : ""}
-    ${srv && srv.llm_model ? `<div class="lab" style="text-transform:none;font-size:12px;margin-bottom:10px">LLM baseline: <b>${esc(srv.llm_model)}</b>${/qwen/i.test(srv.llm_model) ? ", a thinking model: expect one to three minutes (or a timeout on long contracts), not seconds." : ""}</div>` : ""}
+    ${srv && (srv.race_llm_model || srv.llm_model) ? `<div class="lab" style="text-transform:none;font-size:12px;margin-bottom:10px">LLM in this race: <b>${esc(srv.race_llm_model || srv.llm_model)}</b>${srv.race_llm_model && srv.llm_model && srv.race_llm_model !== srv.llm_model ? `. The benchmark baseline was <b>${esc(srv.llm_model)}</b>, so this race's times are not the benchmark's. A free-tier key can hit its quota on long contracts; the recorded replay uses the benchmark run.` : /qwen/i.test(srv.race_llm_model || srv.llm_model) ? ", a thinking model: expect one to three minutes (or a timeout on long contracts), not seconds." : ""}</div>` : ""}
     <div style="display:flex;gap:10px;flex-wrap:wrap"><button class="btn green" id="raceSample" ${srv ? "" : "disabled"}>Race the sample contract</button>
       <label class="btn" style="cursor:pointer">Race my own PDF…<input id="racePick" type="file" accept=".pdf,.txt" hidden></label>
       <button class="btn yellow" id="raceReplay" title="Plays a real run recorded during the benchmark">Replay recorded race</button>
@@ -1201,7 +1201,7 @@ function drawRace(R, el, msg) {
       <div class="lab" style="margin-top:6px;color:#111;text-transform:none;font-weight:500">${R.recorded ? "A recorded benchmark run on one contract: Drex-only arm B and the LLM arm A, each timed on its own. Speed only: agreement is not accuracy. The benchmark page compares accuracy over all report contracts." : "One contract, one run, started cold: the LLM prompt carries a unique run id so provider-side caching can't speed it up, and any earlier race was cancelled. Speed only: agreement is not accuracy. The benchmark page compares accuracy over the report contracts."}</div></div></div>`;
   }
   const rec = R.recorded ? `<div class="banner sample" style="margin-bottom:16px"><b>RECORDED</b>: a real run from the benchmark (${esc(R.title)}, ${R.pages} chunks), replayed at ${R.speed === 1 ? "real time" : R.speed + "× speed"}. The times shown are the recorded wall-clock times, not this browser's. Not a live race.</div>` : "";
-  box.innerHTML = `${rec}<div class="race">${panel("stego", "STEGO · Drex only", "Drex " + esc(R.drex_model || ""))}${panel("llm", "LLM BASELINE", esc(R.llm_model || "unset") + (R.mock ? " (mock)" : ""))}</div>${verdict}`;
+  box.innerHTML = `${rec}<div class="race">${panel("stego", "STEGO · Drex only", "Drex " + esc(R.drex_model || ""))}${panel("llm", R.recorded ? "LLM BASELINE" : "LLM", esc(R.llm_model || "unset") + (R.mock ? " (mock)" : ""))}</div>${verdict}`;
 }
 
 /* ---------- About ---------- */
