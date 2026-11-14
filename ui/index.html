@@ -805,7 +805,9 @@ function workspace() {
           <button class="btn ${dec?.decision === "confirmed" ? "green" : ""}" data-d="confirmed" ${ct.live ? "" : "disabled"}>Confirm present</button>
           <button class="btn ${dec?.decision === "not_present" ? "dark" : ""}" data-d="not_present" ${ct.live ? "" : "disabled"}>Not present</button>
           <button class="btn ${dec?.decision === "escalated" ? "red" : ""}" data-d="escalated" ${ct.live ? "" : "disabled"}>Escalate</button></div>
-        <div class="lab" style="margin-top:10px;text-transform:none;font-size:12px">${dec ? `Recorded: <b>${DEC_LABEL[dec.decision]}</b> by ${esc(dec.reviewer)} at ${esc(dec.at.replace("T", " ").replace("+00:00", " UTC"))}` : ct.live ? "Not decided yet. Stego routes; a person decides." : "Upload a contract to record decisions: sample contracts have no ledger."}</div></div>
+        <div class="lab" style="margin-top:10px;text-transform:none;font-size:12px">${dec ? `Recorded: <b>${DEC_LABEL[dec.decision]}</b> by ${esc(dec.reviewer)} at ${esc(dec.at.replace("T", " ").replace("+00:00", " UTC"))}` : ct.live ? "Not decided yet. Stego routes; a person decides." : "Upload a contract to record decisions: sample contracts have no ledger."}</div>
+        <div style="margin-top:12px;border-top:2px dashed var(--ink);padding-top:10px"><button class="btn sm" id="draftNote" ${ct.live ? "" : "disabled"} title="Optional writing helper. Sends this clause's evidence text to an LLM.">Draft reviewer note (Intern)</button>
+          <span class="lab" style="text-transform:none;margin-left:8px">optional · LLM · not a Drex decision</span><div id="noteOut" style="margin-top:8px"></div></div></div>
     <div class="card studs ldg">${studs(4)}<div class="ldg-h"><h3>Clause board ledger</h3><span class="lab">${cats.length} clauses · click to inspect</span></div>
       <div class="lab" style="margin:2px 0 8px;text-transform:none;font-size:12px"><b>${q.r.length + q.a.length + q.u.length} of ${cats.length}</b> clauses need a human look · ${cats.filter(c => ct.clauses[c].p >= D.theta).length} lean present${D.server && !D.server.thresholds_frozen ? ` · τ=${(+D.tau).toFixed(2)} is a default, not calibrated, so low-p clauses can land in Human review. Run calib on real data to set it.` : ""}</div>
       <div class="dist" title="Share of clauses per queue">${["r", "a", "u", "g"].map(k => q[k].length ? `<i class="${k}" style="flex:${q[k].length}"></i>` : "").join("")}</div>
@@ -817,6 +819,16 @@ function workspace() {
   renderPdf();
   $("#csel").onchange = e => { state.ci = +e.target.value; state.sel = null; workspace(); };
   const v2 = $("#v2file"); if (v2) v2.onchange = e => { const f = e.target.files[0]; if (f) upload(f, ct.id); e.target.value = ""; };
+  const dn = $("#draftNote"); if (dn) dn.onclick = async () => {
+    const out = $("#noteOut"), clause = state.sel; dn.disabled = true;
+    out.innerHTML = `<div class="lab" style="text-transform:none">Asking Intern… up to 20 s. You can keep working.</div>`;
+    const ac = new AbortController(), timer = setTimeout(() => ac.abort(), 25000);
+    try { const r = await fetch("/api/draft-note", { method: "POST", body: JSON.stringify({ id: ct.id, clause }), signal: ac.signal }); const j = await r.json();
+      if (state.sel !== clause) return;
+      out.innerHTML = j.note ? `<div class="card" style="margin:0;background:#fff;padding:10px 14px"><span class="badge a">${esc(j.label)}</span><p style="margin:8px 0 0;font-weight:500">${esc(j.note)}</p><div class="lab" style="margin-top:6px;text-transform:none">${(j.ms / 1000).toFixed(1)} s · review before use. The Drex probability above is the only Drex output.</div></div>`
+        : `<div class="banner sample" style="margin:0">${esc(j.error || "No draft")}</div>`; }
+    catch (e) { if (state.sel === clause) out.innerHTML = `<div class="banner sample" style="margin:0">${e.name === "AbortError" ? "Intern took too long, so the draft was skipped. Nothing else is affected." : "Could not reach the app: " + esc(e.message)}</div>`; }
+    finally { clearTimeout(timer); dn.disabled = false; } };
   $("#view").onclick = e => {
     const c = e.target.closest("[data-c]"), d = e.target.closest("[data-d]"), n = e.target.closest("[data-nav]"), t = e.target.closest("[data-lf]");
     if (t) { state.lf = t.dataset.lf; workspace(); }
