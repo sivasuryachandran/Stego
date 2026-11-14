@@ -385,7 +385,7 @@ pre.cmd{background:#111;color:#fff;padding:12px 14px;border-radius:8px;font:500 
     <span class="pill"><span class="dot"></span><span id="model">Drex</span></span>
     <button class="btn sm" id="demoBtn" title="Hide the sample/mock banners for a clean demo (needs live Drex and real results)">Demo mode: off</button>
   </div>
-  <select id="tplsel" title="Contract type: Auto detects it with Drex" style="margin-right:6px"><option value="auto">Type: auto</option><option value="commercial">Commercial (CUAD 20)</option><option value="lease">Lease</option><option value="loan">Loan</option><option value="health_insurance">Health insurance</option></select>
+  <select id="tplsel" title="Contract type: Auto detects it with Drex" style="margin-right:6px"><option value="commercial">Type: commercial (CUAD 20)</option><option value="auto">Auto-detect with Drex</option><option value="lease">Lease</option><option value="loan">Loan</option><option value="health_insurance">Health insurance</option></select>
   <button class="btn green sm" id="upload">⬆ Upload contract</button>
 </header>
 <div class="strip"><span>DETERMINISTIC CLAUSE TRIAGE BAY // DREX DECIDES, PLAIN CODE AGGREGATES // MIND THE PLATES</span><span class="sticker" id="runtime">SAMPLE</span></div>
@@ -555,7 +555,7 @@ function upload(file, parent) {
   const finish = () => { finished = true; clearInterval(poll); ui.close(); };
   const cancel = () => { if (finished) return; xhr.abort(); fetch("/api/cancel/" + job, { method: "POST" }).catch(() => {}); finish(); toast("Dig cancelled."); };
   xhr.open("POST", "/api/analyze");
-  xhr.setRequestHeader("X-Filename", encodeURIComponent(file.name)); xhr.setRequestHeader("X-Job", job); if (parent) xhr.setRequestHeader("X-Parent", parent); xhr.setRequestHeader("X-Template", (document.getElementById("tplsel") || {}).value || "auto");
+  xhr.setRequestHeader("X-Filename", encodeURIComponent(file.name)); xhr.setRequestHeader("X-Job", job); if (parent) xhr.setRequestHeader("X-Parent", parent); xhr.setRequestHeader("X-Template", parent ? "inherit" : ((document.getElementById("tplsel") || {}).value || "commercial"));
   xhr.upload.onprogress = e => { if (e.lengthComputable) ui.set(e.loaded / e.total * 10, `Uploading ${(e.loaded / 1e6).toFixed(1)} of ${(e.total / 1e6).toFixed(1)} MB`); };
   xhr.upload.onload = () => { ui.set(10, "Upload done. Drex takes over…");
     poll = setInterval(async () => { try { const p = await (await fetch("/api/progress/" + job)).json(); if (p && p.pct != null) ui.set(p.pct, p.detail); } catch (e) { /* keep polling */ } }, 350); };

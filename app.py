@@ -249,12 +249,19 @@ async def analyze(title, pages, pdf_name, job=None, parent=None, use_cache=True,
         if os.path.exists(pp):
             parent_rec = json.load(open(pp))
     detected = None
-    if template == "auto" and parent_rec:
+    if template in ("auto", "inherit") and parent_rec:
         template = parent_rec.get("template", "commercial")      # a v2 keeps its parent's template
+    if template == "inherit":
+        template = "commercial"
     if template == "auto":
         qs = detect_questions()
-        firsts = await asyncio.gather(*[drex.decide(c.text, qs, arm="live-type", contract=title, unit=f"type{c.idx}") for c in ct.chunks[:3]])
-        detected = {k[2:]: round(max(f.get(k, 0.0) for f in firsts), 4) for k in qs}
+        if config.MOCK:   # the mock Drex only answers clause-style questions: use keywords (mock mode is labelled everywhere)
+            head = " ".join(c.text for c in ct.chunks[:3]).lower()
+            kw = {"lease": r"landlord|tenant|premises", "loan": r"lender|borrower|principal amount|promissory", "health_insurance": r"insurer|health plan|deductible|covered services|evidence of coverage"}
+            detected = {k: round(min(0.99, 0.3 * len(re.findall(p, head))), 4) for k, p in kw.items()}
+        else:
+            firsts = await asyncio.gather(*[drex.decide(c.text, qs, arm="live-type", contract=title, unit=f"type{c.idx}") for c in ct.chunks[:3]])
+            detected = {k[2:]: round(max(f.get(k, 0.0) for f in firsts), 4) for k in qs}
         template = pick_template(detected)
     elif template not in TEMPLATES:
         template = "commercial"
@@ -624,7 +631,7 @@ class H(BaseHTTPRequestHandler):
                 open(os.path.join(LIVE, "uploads", pdf_name), "wb").write(data)
             parent = re.sub(r"[^a-z0-9]", "", self.headers.get("X-Parent", "").lower())[:16] or None
             use_cache = self.headers.get("X-Cache", "on").lower() != "off"
-            template = re.sub(r"[^a-z_]", "", self.headers.get("X-Template", "auto").lower()) or "auto"
+            template = re.sub(r"[^a-z_]", "", self.headers.get("X-Template", "commercial").lower()) or "commercial"
             if name.lower().endswith(".txt") and len(pages) > 1 and "\f" not in data.decode("utf-8", errors="replace"):
                 pages = ["\n".join(pages)]   # plain text: let the content-defined chunker cut it, not the fixed-size one
             rec = asyncio.run(run_analysis(os.path.splitext(name)[0], pages, pdf_name, job, parent, use_cache, template))
