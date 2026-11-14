@@ -74,8 +74,29 @@ Use `--out` for experiments: the default output is `runs/latest`, which holds th
 | Accuracy at confidence ≥ 0.93 | 96.3% over 1,139 of 1,640 decisions |
 | Speed / cost | 6.9 s median per contract, about $0.002 per contract, 0 LLM calls |
 
-**Arms A (LLM alone) and C (cascade) are not in `runs/final` yet.** Until they are merged (`python run_bench.py merge`), this repo
-makes no head-to-head claim against the LLM; the Benchmark page shows only B and the majority baseline.
+### All four arms (pre-registered scoring: a failed contract counts as wrong on every category)
+| | **B** Stego (Drex only) | **C** cascade | **A** open 27B LLM (Qwen3.8-27B) | **M** majority-class |
+|---|---|---|---|---|
+| Macro-F1 | **0.796** | 0.741 | 0.738 | 0.043 |
+| Micro-F1 | **0.834** | 0.769 | 0.762 | 0.219 |
+| Accuracy | **90.5%** | 85.9% | 85.7% | 73.5% |
+| Evidence on the right chunk (top 1) | **94.4%** | 92.2% | 90.1% | – |
+| Median time per contract | **6.9 s** | 135.5 s | 137.7 s | – |
+| Cost per contract | **$0.0022** | $0.0186 | $0.0183 | $0 |
+| LLM calls (82 contracts) | 0 | 77 | 82 | 0 |
+| Failed contracts | 0 | 2 | 3 | 0 |
+
+How to read this:
+- **Stego (Drex only) is not more accurate than the LLM in any way we can show.** Its lead in the table comes mostly from the contracts where the LLM
+  timed out (300 s read timeout on a thinking model; A: 3 contracts, C: 2). Two **labelled, not pre-registered** sensitivity checks are stored in
+  `runs/final/results.json` and shown on the Benchmark page: on the 79 contracts where A completed, macro-F1 is **A 0.798 vs B 0.788** (accuracy 89.0% vs 90.6%);
+  on the 80 where C completed, **C 0.778 vs B 0.788** (accuracy 88.1% vs 90.5%). That is roughly a tie on accuracy.
+- **What the data does support:** about equal accuracy at roughly **20x the speed and 8x lower cost**, plus calibrated probabilities and an abstention rule.
+- **The cascade did not help.** C is not better than Drex-only, and it costs as much as the LLM alone.
+- **The LLM is an open 27B model in thinking mode, not a frontier model.** A frontier model, or Qwen with thinking off, would be faster; no frontier arm was run.
+- The failed-contract rule was not changed after seeing results. Arm C had a pre-declared cutoff of 1:15 PM; it finished at 12:32, so the cutoff was not used.
+- Per-contract latency and cost come from the ledgers: `runs/final/armA_per_contract.json`, `runs/final/armC_per_contract.json` (`tools/ledger_costs.py`).
+  `tools/sensitivity.py` reproduces the arm A check.
 
 ## Content Credentials
 ```bash
