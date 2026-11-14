@@ -91,13 +91,31 @@ def queue(cat, p, theta, tau, urgent=URGENT):
     return "urgent" if cat in urgent else "review"
 
 
+def _is_intern(ln):
+    try:
+        return json.loads(ln).get("kind") == "intern"
+    except ValueError:
+        return False
+
+
+def ledger_parts(raw, title):
+    """Split the call ledger for sealing. Intern rows (an optional LLM writing helper) are LLM calls, not Drex decisions:
+    they are counted separately and excluded from the Drex ledger hash and row count.
+    Returns (bytes without intern rows, this contract's non-intern rows, number of intern rows for this contract)."""
+    lines = raw.decode().splitlines(keepends=True)
+    kept = [ln for ln in lines if ln.strip() and not _is_intern(ln)]
+    mine = [ln.strip() for ln in kept if json.loads(ln).get("contract") == title]
+    # a call that never started (Intern not installed: status "unavailable") is not an LLM call
+    n_llm = sum(1 for ln in lines if ln.strip() and _is_intern(ln) and json.loads(ln).get("contract") == title and json.loads(ln).get("status") != "unavailable")
+    return "".join(ln for ln in lines if not (ln.strip() and _is_intern(ln))).encode(), mine, n_llm
+
+
 def build_record(contract, drex_model, theta, tau, frozen, reviews=None, ledger_path=None):
     """contract: a runs/live/contracts/<id>.json dict. reviews: {clause: 'approved'|'escalated'} (human actions)."""
     reviews = reviews or {}
     ledger_path = ledger_path or os.path.join(LIVE, "ledger.jsonl")
     raw = open(ledger_path, "rb").read() if os.path.exists(ledger_path) else b""
-    rows = [ln for ln in raw.decode().splitlines() if ln.strip()]
-    mine = [ln for ln in rows if json.loads(ln).get("contract") == contract["title"]]
+    raw, mine, n_llm = ledger_parts(raw, contract["title"])
     decisions = []
     urgent = set(contract.get("urgent") or URGENT)
     for cat, c in contract["clauses"].items():
@@ -114,7 +132,7 @@ def build_record(contract, drex_model, theta, tau, frozen, reviews=None, ledger_
     return {"schema": "org.stego.decision-record/1", "contract": contract["title"], "contract_id": contract["id"], "pages": contract["pages"], "render_version": RENDER_VERSION, "human_decisions": human,
             "drex": {"model": drex_model, "mode": "mock" if contract.get("mock") else "live"},
             "thresholds": {"theta": theta, "tau": tau, "frozen_on_calibration_set": frozen},
-            "firefly_mascot_ingredient": os.path.exists(MASCOT), "reasoning_llm_calls": 0, "clauses_evaluated": len(contract["clauses"]), "flagged": decisions,
+            "firefly_mascot_ingredient": os.path.exists(MASCOT), "reasoning_llm_calls": n_llm, "clauses_evaluated": len(contract["clauses"]), "flagged": decisions,
             "cleared": [k for k, c in contract["clauses"].items() if queue(k, c["p"], theta, tau, urgent) == "cleared"],
             "template": contract.get("template", "commercial"), "template_label": contract.get("template_label", "Commercial contract (CUAD 20)"), "benchmarked": contract.get("benchmarked", True),
             "ledger": {"file_sha256": sha(raw), "contract_rows": len(mine), "contract_rows_sha256": sha("\n".join(mine))},
@@ -225,6 +243,8 @@ def render_brief(rec):
     d.text((100, y + 44), f"ledger sha256  {rec['ledger']['file_sha256'][:48]}…", font=f_m, fill=INK)
     d.text((100, y + 70), f"contract rows  {rec['ledger']['contract_rows']}  ·  reasoning-LLM calls  {rec['reasoning_llm_calls']}", font=f_m, fill=INK)
     d.text((100, y + 100), "Proves who decided and from what evidence, not that the decision was right. TEST certificate: verify shows an untrusted signer.", font=f_s, fill=(80, 78, 70))
+    if rec["reasoning_llm_calls"]:
+        d.text((100, y + 124), f"An optional LLM note helper was used ({rec['reasoning_llm_calls']} call): this is NOT a Drex-only brief.", font=f_s, fill=(160, 30, 30))
     out = io.BytesIO()
     im.save(out, "PNG")
     return out.getvalue()
@@ -247,7 +267,7 @@ def seal(png, rec):
             {"label": "c2pa.actions", "data": {"actions": [{
                 "action": "c2pa.created", "softwareAgent": {"name": "Stego"},
                 "digitalSourceType": "http://cv.iptc.org/newscodes/digitalsourcetype/digitalCreation",
-                "description": f"Clause triage brief: {len(flagged)} clauses flagged by Drex ({rec['drex']['model']}, {rec['drex']['mode']}); 0 reasoning-LLM calls"}]}},
+                "description": f"Clause triage brief: {len(flagged)} clauses flagged by Drex ({rec['drex']['model']}, {rec['drex']['mode']}); {rec['reasoning_llm_calls']} reasoning-LLM calls" + (" (an optional LLM note helper was used; not a Drex-only brief)" if rec["reasoning_llm_calls"] else "")}]}},
             {"label": "org.stego.decision-record", "data": rec},
         ],
     }
@@ -290,8 +310,7 @@ def _ledger_matches(rec):
     path = os.path.join(LIVE, "ledger.jsonl")
     if not os.path.exists(path):
         return None
-    rows = [ln for ln in open(path, encoding="utf-8").read().splitlines() if ln.strip()]
-    mine = [ln for ln in rows if json.loads(ln).get("contract") == rec["contract"]]
+    _, mine, _ = ledger_parts(open(path, "rb").read(), rec["contract"])
     n = rec["ledger"]["contract_rows"]  # the ledger is append-only, so compare the rows the seal covered
     return sha("\n".join(mine[:n])) == rec["ledger"]["contract_rows_sha256"]
 

@@ -227,7 +227,8 @@ def intern_command(prompt):
 
 def run_intern(prompt):
     """Returns (status, text). status: ok | timeout | unavailable | error. Never raises, never blocks longer than INTERN_TIMEOUT."""
-    env = dict(os.environ)
+    # least privilege: the subprocess gets only PATH/HOME (plus the few OS variables Windows/Docker need) and exactly two keys
+    env = {k: os.environ[k] for k in ("PATH", "HOME", "LANG", "TMPDIR", "SYSTEMROOT", "USERPROFILE", "TEMP", "TMP") if k in os.environ}
     env["NACE_API_KEY"] = config.DREX_API_KEY
     env["DEEPINFRA_API_KEY"] = os.getenv("DEEPINFRA_API_KEY") or (config.LLM_API_KEY if "deepinfra" in config.LLM_BASE_URL else "")
     try:
@@ -506,6 +507,12 @@ def state():
         live.append(json.load(open(os.path.join(LIVE, "contracts", f))))
     live.sort(key=lambda r: -r["analyzed_at"])
     led = read_jsonl(os.path.join(LIVE, "ledger.jsonl"))
+    n_intern = {}
+    for r in led:
+        if r.get("kind") == "intern" and r.get("status") != "unavailable":
+            n_intern[r.get("contract")] = n_intern.get(r.get("contract"), 0) + 1
+    for c in live:
+        c["llm_note_calls"] = n_intern.get(c["title"], 0)      # optional LLM note-helper calls (not Drex decisions)
     for r in led:
         r.pop("probs", None)
     return {"mode": "mock" if config.MOCK else "live", "drex_model": config.DREX_MODEL, "drex_provider": "Mock Drex" if config.MOCK else config.DREX_PROVIDER, "theta": theta, "tau": tau,

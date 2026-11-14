@@ -515,6 +515,10 @@ function dino(w = 220, cls = "") {
 
 const DINO_MSGS = ["Sweeping every page for clauses…", "Brushing dust off the evidence…", "Sniffing out the hidden clause…", "Counting plates: every clause gets a probability…",
   "Reading the fossil record…", "Stomping through the strata…", "No big brain needed. Zero reasoning-LLM calls…"];
+// Cache counts always travel with a speed number: a time without them can hide that earlier answers were reused.
+const cacheCounts = c => { const k = c && c.cache; if (!k) return c && c.live ? "cache counts unavailable" : "";
+  const ex = k.requests_cached || 0, ap = k.requests_approx || 0, fr = k.requests_sent || 0;
+  return (ex + ap ? "WARM CACHE · " : "") + `${ex} exact hits · ${ap} similar-text hits · ${fr} fresh Drex calls`; };
 function dinoOverlay(fileName, onCancel) {
   const ov = document.createElement("div"); ov.className = "ov";
   ov.innerHTML = `<div class="card dino-card">${dino(250)}<h3 style="margin-top:8px">Drex is excavating your contract…</h3>
@@ -538,6 +542,7 @@ function dinoOverlay(fileName, onCancel) {
         const secs = st.ms != null ? (st.ms / 1000).toFixed(1) + " s" : "";
         card.innerHTML = `<span class="sticker donest">&#10003; Upload done!</span>${dino(210, "party")}<h3 style="margin-top:6px">Fossil unearthed</h3>
           <div class="dstats"><span><b>${st.pages ?? "–"}</b>pages</span><span><b>${st.decisions ?? "–"}</b>Drex decisions</span><span><b>${secs}</b>wall-clock</span><span><b>0</b>LLM calls</span></div>
+          <div class="lab" style="margin-top:6px;text-transform:none">${esc(cacheCounts({ live: true, cache: st.cache }))}</div>
           <button class="btn green" id="dgo" style="font-size:18px;padding:12px 22px">Open the clause board &rarr;</button><div class="lab" style="margin-top:8px">Opening automatically…</div>`;
         const cf = document.createElement("div"); cf.className = "confetti";
         cf.innerHTML = Array.from({ length: 34 }, (_, i) => `<i style="left:${(Math.random() * 100).toFixed(1)}%;background:${["#FFD83D", "#2FA84F", "#F5A524", "#E5484D", "#fff"][i % 5]};animation-duration:${(2.2 + Math.random() * 1.8).toFixed(2)}s;animation-delay:${(Math.random() * .8).toFixed(2)}s;transform:rotate(${Math.round(Math.random() * 90)}deg)"></i>`).join("");
@@ -564,7 +569,7 @@ function upload(file, parent) {
     if (xhr.status !== 200) { finish(); toast("The dig failed: " + (j.error || xhr.status)); return; }
     ui.set(100, "Fossil unearthed"); await new Promise(r => setTimeout(r, 350));
     D = await load(); state.ci = Math.max(0, D.contracts.findIndex(c => c.id === j.id)); state.sel = null;
-    await ui.done({ pages: j.pages, decisions: j.drex_decisions, ms: j.ms });
+    await ui.done({ pages: j.pages, decisions: j.drex_decisions, ms: j.ms, cache: j.cache });
     finish(); go("workspace");
   };
   xhr.onerror = () => { if (!finished) { finish(); toast("The dig failed: network error"); } };
@@ -775,7 +780,7 @@ function workspace() {
       ${ct.live && ct.template ? `<div class="card" style="margin:0;padding:8px 14px"><div class="lab">TEMPLATE</div><div class="metric" style="font-size:20px">${esc(ct.template_label)}</div><div class="lab" style="text-transform:none">${ct.benchmarked ? "benchmarked on CUAD" : "<b>NOT BENCHMARKED</b>: no gold labels"}${ct.template_detected ? "<br>detected: " + Object.entries(ct.template_detected).map(([k, v]) => k.replace("_", " ") + " " + v.toFixed(2)).join(" · ") : ""}</div></div>` : ""}
       ${(() => { const c = ct.cache; if (!c) return ""; const ap = c.requests_approx || 0, hit = c.requests_cached + ap, n = hit + c.requests_sent; if (!hit && !c.label) return "";
         return `<div class="card" style="margin:0;padding:8px 14px;background:var(--yellow)"><div class="lab">WARM CACHE${ct.version > 1 ? " · v" + ct.version : ""}</div><div class="metric" style="font-size:24px">${hit} of ${n} Drex requests reused</div><div class="lab" style="text-transform:none">${c.requests_cached} exact · ${ap} similar text${c.approx_min_sim ? " (at least " + Math.round(c.approx_min_sim * 100) + "% similar)" : ""} · ${c.requests_sent} sent to Drex${c.chunks_total ? "<br>" + c.chunks_reused + " of " + c.chunks_total + " chunks identical to the previous version" : ""}${c.parent_ms ? "<br>" + sec(ct.ms) + " vs " + sec(c.parent_ms) + " for the previous version (cold)" : ""}${ap ? "<br>Similar-text answers are reused, not re-asked, so they can differ from a fresh Drex answer." : ""}</div></div>`; })()}
-      <div class="card" style="margin:0;padding:8px 14px"><div class="lab">Time</div><div class="metric" style="font-size:24px">${sec(ct.ms)}</div></div>
+      <div class="card" style="margin:0;padding:8px 14px"><div class="lab">Time</div><div class="metric" style="font-size:24px">${sec(ct.ms)}</div>${ct.live ? `<div class="lab" style="text-transform:none">${esc(cacheCounts(ct))}</div>` : ""}</div>
       ${ct.live && D.server ? `<div class="card" style="margin:0;padding:8px 14px"><div class="lab">Parse cost${ct.mock ? " (mock)" : ""}</div><div class="metric" style="font-size:24px">$${((D.liveLedger || []).filter(r => r.contract === ct.title && r.status !== "cached").reduce((a, r) => a + (r.input_tokens || 0), 0) / 1e6 * D.server.drex_price_per_m).toFixed(4)}</div></div>` : ""}</div></div></div>
   <div class="ws">
     <div><div class="card studs" style="padding:12px 16px">${studs(4)}<div style="display:flex;justify-content:space-between;align-items:center"><b class="head">${ev?.page ? "Page " + ev.page + " of " + ct.pages : loc(cl)} · ${esc(state.sel)}</b>
@@ -861,7 +866,7 @@ function portfolio() {
     <div class="legend" title="Each dot is one clause, always in the same order">${[["g", "Auto-cleared"], ["a", "Found · confirm"], ["r", "Urgent (policy)"], ["u", "Uncertain / human"]].map(([k, t]) => `<span class="lg"><i class="${k}"></i>${t}</span>`).join("")}</div></div>
   <div class="row-h"><span>Contract</span><span>Queue summary</span><span>${cats.length}-clause fingerprint</span><span>Open</span></div>
   ${shown.map(([c, i]) => { const worst = cats.some(k => queue(k, c.clauses[k].p) === "r");
-    return `<div class="row-c"><div><b class="head" style="font-size:18px">${esc(c.title)}</b><div class="lab">${c.pages ? c.pages + " pages · " : ""}${sec(c.ms)}</div></div>
+    return `<div class="row-c"><div><b class="head" style="font-size:18px">${esc(c.title)}</b><div class="lab">${c.pages ? c.pages + " pages · " : ""}${sec(c.ms)}${c.live ? " · " + esc(cacheCounts(c)) : ""}</div></div>
       <div><span class="badge ${worst ? "r" : nRev(c) ? "a" : "g"}">${nRev(c)} found · ${nHum(c)} human</span></div>
       <div><span class="fp" title="Fixed order of the ${cats.length} categories">${cats.map(k => `<i class="${queue(k, c.clauses[k].p)}" title="${esc(k)} p=${c.clauses[k].p.toFixed(2)}"></i>`).join("")}</span></div>
       <div style="text-align:right"><button class="btn sm" data-v="${i}">View →</button></div></div>`; }).join("") || '<div class="card">No matches.</div>'}
@@ -1011,7 +1016,7 @@ function fossilPanel(ct) {
           <b>Reasoning-LLM</b><span>${rec.reasoning_llm_calls} calls</span><b>Firefly mascot</b><span>${rec.firefly_mascot_ingredient ? "included as an ingredient" : "not included (add assets/mascot_firefly.png)"}</span><b>Ledger sha256</b><span>${esc(rec.ledger.file_sha256.slice(0, 32))}…</span>
           <b>Contract rows</b><span>${rec.ledger.contract_rows} (sha ${esc(rec.ledger.contract_rows_sha256.slice(0, 12))}…)</span><b>Sealed at</b><span>${esc(rec.sealed_at)}</span></div>
         <table class="fr-tbl"><thead><tr><th>Flagged clause</th><th>p</th><th>Evidence</th><th>Queue</th><th>Human</th></tr></thead><tbody>
-          ${rec.flagged.map(d => `<tr><td class="l">${esc(d.clause)}</td><td>${d.probability.toFixed(2)}</td><td>p.${d.evidence_page ?? "–"}</td><td>${esc(d.queue)}</td><td>${esc(d.human_review || "–")}</td></tr>`).join("")}</tbody></table>
+          ${rec.flagged.map(d => `<tr><td class="l">${esc(d.clause)}</td><td>${d.probability.toFixed(2)}</td><td>p.${d.evidence_page ?? "–"}</td><td>${esc(d.queue)}</td><td>${esc(d.human_review && typeof d.human_review === "object" ? (DEC_LABEL[d.human_review.decision] || d.human_review.decision) + " · " + d.human_review.reviewer : d.human_review || "–")}</td></tr>`).join("")}</tbody></table>
         <div class="lab" style="margin-top:8px">Adobe's verify page shows the standard fields (creator, action). This panel reads the full record from the same seal.</div></div></div>` : ""}
     <div id="vres"></div>`;
   $("#doSeal").onclick = async e => { e.target.disabled = true; e.target.innerHTML = ICON.seal + "Sealing the fossil…";
@@ -1089,6 +1094,7 @@ function clip(t, n = 240) {
 const NOEV = '<i class="noev">No supporting passage found</i>';
 const PDFJS = "/ui/vendor/pdfjs/pdf.min.js", PDFW = "/ui/vendor/pdfjs/pdf.worker.min.js";   // bundled copy (Apache-2.0, see ui/vendor/pdfjs/LICENSE)
 const PDFJS_CDN = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js", PDFW_CDN = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+const llmNoteCount = ct => ct.llm_note_calls || 0;   // LLM note-helper calls on this contract
 function loadPdfjs() {
   return window._pdfjsP || (window._pdfjsP = new Promise((res, rej) => {
     if (window.pdfjsLib) return res(window.pdfjsLib);
@@ -1269,7 +1275,7 @@ function printDoc(ct, q) {
   return `<div class="pd-head"><div class="pd-brand">${logo}<div><div class="pd-word">STEGO</div><div class="pd-tag">Contract triage without the big brain</div></div></div>
       <div class="pd-title"><b>Contract review brief</b><span>${esc(fmt)}</span></div></div>
     <div class="pd-meta">${kv("Contract", esc(ct.title))}${kv("Pages", ct.pages ?? "n/a")}${kv("Source", esc(src))}${kv("Drex model", esc(ct.live && D.server ? D.server.drex_model + (mock ? " (mock)" : "") : (D.drex_model || "n/a")))}
-      ${kv("Thresholds", `θ=${D.theta} · τ=${(+D.tau).toFixed(2)}`)}${kv("Reasoning LLM", "0 calls")}${kv("Clauses checked", (ct.categories || D.categories).length)}${kv("Time", sec(ct.ms))}</div>
+      ${kv("Thresholds", `θ=${D.theta} · τ=${(+D.tau).toFixed(2)}`)}${kv("Reasoning LLM", llmNoteCount(ct) + " calls" + (llmNoteCount(ct) ? " (optional note helper)" : ""))}${kv("Clauses checked", (ct.categories || D.categories).length)}${kv("Time", sec(ct.ms))}${ct.live ? kv("Cache", esc(cacheCounts(ct))) : ""}</div>
     ${warn ? `<div class="pd-warn">${esc(warn)}</div>` : ""}
     <div class="pd-sum"><div class="r"><b>${q.r.length}</b><span>Urgent (policy)</span></div><div class="a"><b>${q.a.length}</b><span>Found · confirm</span></div><div class="g"><b>${q.g.length}</b><span>Auto-cleared</span></div><div class="u"><b>${q.u.length}</b><span>Human review</span></div></div>
     <div class="pd-read">${pagesList.length ? "Pages to read: " + pagesList.map(p => "p." + p).join(", ") : "No flagged page mapping available."}${ct.pages ? " (of " + ct.pages + ")" : ""}</div>
@@ -1282,7 +1288,7 @@ function printDoc(ct, q) {
         ${i.text && i.p >= D.theta ? `<blockquote>${esc(clip(i.text, 260))}</blockquote>` : i.p < D.theta ? `<div style="font-size:9pt;color:#555;margin-top:3px">No supporting passage found (p below θ).</div>` : `<div style="font-size:9pt;color:#555;margin-top:3px">Evidence: chunk ${i.chunk ?? "–"} of the source text (page highlight needs a page-mapped PDF).</div>`}</div>`).join("")}</div>`).join("") || "<p>Nothing to review.</p>"}
     <div class="pd-h">3 · Auto-cleared (confidently absent)</div>
     <div class="pd-clr">${q.g.map(c => `<div>✓ ${esc(c)}</div>`).join("") || "None"}</div>
-    <div class="pd-note">Clause triage, not a legal-risk review. "Urgent" is a policy layer with no ground truth. Presence decided by Drex; no general-purpose reasoning LLM. Probability p is Drex's confidence that the clause is present on the cited page; queues use θ (presence) and τ (abstention).</div>`;
+    <div class="pd-note">Clause triage, not a legal-risk review. "Urgent" is a policy layer with no ground truth. Presence decided by Drex; ${llmNoteCount(ct) ? `an optional LLM note helper was used ${llmNoteCount(ct)}×, so this is not Drex-only.` : "no general-purpose reasoning LLM."} Probability p is Drex's confidence that the clause is present on the cited page; queues use θ (presence) and τ (abstention).</div>`;
 }
 function printBrief() {
   const ct = D.contracts[state.ci], t = document.title;
@@ -1329,7 +1335,7 @@ function brief() {
     <div class="card u" style="box-shadow:none;margin-bottom:22px"><div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px"><h3>Human review (${q.u.length})</h3><span class="badge">Drex is below τ: needs a person</span></div>
       ${q.u.length ? `<div class="tw" style="margin-top:10px;box-shadow:none"><table class="bt"><thead><tr><th>Clause</th><th>Where</th><th>p</th><th>Lean</th><th>Passage</th></tr></thead><tbody>${q.u.map(row).join("")}</tbody></table></div>` : '<div class="lab" style="margin-top:8px">None</div>'}</div>
     <div class="band g"><span>Auto-cleared (confidently absent)</span><span class="badge">${q.g.length} clauses</span></div><div class="bsec"><div class="ag">${q.g.map(c => `<div><span>${esc(c)}</span><span class="mono" style="color:var(--green-d)">cleared</span></div>`).join("") || "None"}</div></div>
-    <div class="lab" style="margin-top:20px">Clause triage, not a legal-risk score. "Urgent" is a policy layer with no ground truth. Presence decided by Drex; no general-purpose reasoning LLM.</div></div>
+    <div class="lab" style="margin-top:20px">Clause triage, not a legal-risk score. "Urgent" is a policy layer with no ground truth. Presence decided by Drex; ${llmNoteCount(ct) ? `an optional LLM note helper was used ${llmNoteCount(ct)}×, so this is not Drex-only.` : "no general-purpose reasoning LLM."}</div></div>
   <div id="printdoc">${printDoc(ct, q)}</div>`;
   fossilPanel(ct);
   $("#tbSeal").onclick = () => sealBrief(ct);

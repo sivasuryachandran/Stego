@@ -116,7 +116,7 @@ How to read this:
 These are app-path features. The benchmark, its chunker and the frozen thresholds are untouched.
 
 - **Warm cache and "Re-upload as v2".** App uploads use a content-defined, page-bounded chunker and a SQLite cache keyed on a hash of
-  (Drex model, chunk text, questions). Re-upload a revised contract and unchanged chunks are answered from the cache; the Workspace shows
+  (Drex model, chunk text, questions). Every upload shows its cache counts (exact hits, similar-text hits, fresh Drex calls) next to its time, labelled WARM CACHE when any hit exists. Re-upload a revised contract and unchanged chunks are answered from the cache; the Workspace shows
   chunks reused / re-asked and the time, labelled **warm cache**. A second, approximate tier reuses answers for chunks at least 90% similar
   (MinHash over 5-word shingles, numbers ignored, same questions and model). Similar-text answers can differ from a fresh Drex answer, so they are counted separately.
   Measured in our own test runs: on an 80-page contract with new numbers and two edited paragraphs, 4.1 s against 11.2 s fresh, with no yes/no flips against fresh Drex (0 of 20)
@@ -124,10 +124,10 @@ These are app-path features. The benchmark, its chunker and the frozen threshold
   The cold first upload is the honest speed number; a v2 is fast only because v1 ran first.
 - **Contract-type templates (not benchmarked).** Lease, loan and health insurance clause sets (10 clauses each, `stego/templates.py`), chosen with the **Type** dropdown
   (default: commercial, the CUAD 20; "Auto-detect with Drex" is opt-in and needs at least 0.60). There are no gold labels for these clauses, so they have no accuracy claim.
-  We checked them only on three invented samples (`samples/make_template_samples.py`): detection was correct on all three and 30 of 30 clauses matched what we built in.
+  The θ and τ thresholds used for them are the CUAD ones, calibrated on the CUAD 20 and **uncalibrated for these templates**. We checked them only on three invented samples (`samples/make_template_samples.py`): detection was correct on all three and 30 of 30 clauses matched what we built in.
   The sealed brief says "not benchmarked". Urgent flags are policy lists, not ground truth.
 - **Draft reviewer note (Intern), optional.** A button that runs `intern -p` (nace-ai/intern, headless) to draft a two to three sentence reviewer note from a clause's probability and evidence text.
-  It is labelled "Drafted by Intern (LLM), not a Drex decision"; Stego's decisions come from Drex only. It sends that clause's evidence text to an LLM (DeepInfra), is capped at 20 s, and fails soft.
+  It is labelled "Drafted by Intern (LLM), not a Drex decision"; Stego's decisions come from Drex only. It sends that clause's evidence text to an LLM (DeepInfra), and the Intern subprocess gets exactly two secrets in its environment, `NACE_API_KEY` and `DEEPINFRA_API_KEY` (plus PATH/HOME); no other variables are passed. It is capped at 20 s and fails soft. Each draft is an LLM call: it is logged as `kind="intern"`, counted in the seal's `reasoning_llm_calls`, left out of the Drex row count and ledger hash, and the seal then says the brief is not Drex-only.
   Intern needs Linux or macOS, so on Windows it runs in a Docker image: `docker build -t stego-intern tools/intern`. Without Docker the button shows a message and nothing else changes.
   Intern is used in the product only through this button.
 

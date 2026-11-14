@@ -26,6 +26,11 @@ _MOCK_KW = {
 }
 
 
+BLOCKED_MSG = ("Blocked by the host (HTML 403, possibly a bot checkpoint). This is not an API-key problem. "
+               "Switch provider with DREX_BASE_URL.")
+RETRY_CAP_S = 60   # total time spent retrying 429/5xx responses before failing with a clear message
+
+
 class DrexClient:
     def __init__(self, ledger, cache):
         self.ledger, self.cache = ledger, cache
@@ -120,6 +125,7 @@ class DrexClient:
 
     async def _post(self, payload):
         delay = 1.0
+        t_start = time.monotonic()
         for attempt in range(10):
             async with self.sem:
                 try:
@@ -129,8 +135,13 @@ class DrexClient:
             if r is not None and r.status_code == 404 and self.path == "/v1/systemone":
                 self.path = "/v1/decisions"          # alternate wire path used by some hosts
                 continue
+            if r is not None and (r.status_code == 403 or (r.status_code == 200 and r.text.lstrip()[:9].lower().startswith(("<!doctype", "<html")))):
+                return {}, {"error": BLOCKED_MSG}, "error"          # a host or bot-checkpoint block, not an API-key problem: never retried (429 and 5xx keep their retries, HTML body or not)
             if r is not None and r.status_code == 200:
-                body = r.json()
+                try:
+                    body = r.json()
+                except ValueError:
+                    return {}, {"error": "Drex returned HTTP 200 with a body that is not JSON. Check DREX_BASE_URL and DREX_PATH, or switch provider with DREX_BASE_URL."}, "error"
                 probs = {}
                 for qid, a in body.get("answers", {}).items():
                     if "noul" in a:
@@ -149,6 +160,9 @@ class DrexClient:
                     wait = max(wait, float(ra) / 1000 if ra else float(r.headers.get("retry-after", 0)))
                 except ValueError:
                     pass
-            await asyncio.sleep(min(wait, 30))
+            wait = min(wait, 30)
+            if r is not None and time.monotonic() - t_start + wait > RETRY_CAP_S:
+                return {}, {"error": f"Drex kept answering HTTP {r.status_code}; gave up after {RETRY_CAP_S} s of retrying. Wait a minute and retry, or lower DREX_MAX_INFLIGHT."}, "error"
+            await asyncio.sleep(wait)
             delay = min(delay * 2, 20)
         return {}, {"error": err}, "error"
