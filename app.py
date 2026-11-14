@@ -56,8 +56,11 @@ def extract_pages(name, data):
     if name.lower().endswith(".pdf"):
         import io
         from pypdf import PdfReader
-        reader = PdfReader(io.BytesIO(data))
-        pages = [(pg.extract_text() or "").strip() for pg in reader.pages]
+        try:
+            reader = PdfReader(io.BytesIO(data))
+            pages = [(pg.extract_text() or "").strip() for pg in reader.pages]
+        except Exception:
+            raise ValueError("This file could not be read as a PDF. Upload a text-based PDF that opens normally.")
         if not any(pages):
             raise ValueError("No extractable text (scanned PDF). Scanned PDFs are not supported: upload a text-based PDF.")
         return pages
@@ -198,7 +201,7 @@ def locate(page_text, category, limit=420):
 
 
 # ---------------------------------------------------------------- optional writing helper: Intern (nace-ai/intern), headless
-INTERN_TIMEOUT = 20
+INTERN_TIMEOUT = int(os.getenv("INTERN_TIMEOUT", "20"))   # typical notes take 9 to 15 s; set 30 for a demo
 INTERN_LABEL = "Drafted by Intern (LLM), not a Drex decision"
 
 
@@ -238,7 +241,9 @@ def run_intern(prompt):
     for secret in (env["NACE_API_KEY"], env["DEEPINFRA_API_KEY"]):
         if secret:
             out, err = out.replace(secret, "***"), err.replace(secret, "***")
-    if r.returncode != 0 or not out:
+    if r.returncode == 0 and not out:
+        return "error", "Intern returned an empty reply, so there is no draft."
+    if r.returncode != 0:
         return "error", ("Intern failed: " + (err[-300:] or out[-300:] or f"exit code {r.returncode}"))
     return "ok", out
 
@@ -568,6 +573,8 @@ class H(BaseHTTPRequestHandler):
             with DEC_LOCK, open(DECISIONS, "a", encoding="utf-8") as f:
                 f.write(json.dumps(row) + "\n")
             return self.send_json(row)
+        except json.JSONDecodeError:
+            return self.send_json({"error": "request body is not valid JSON"}, 400)
         except Exception as e:
             return self.send_json({"error": f"{type(e).__name__}: {str(e)[:200]}"}, 500)
 
@@ -616,6 +623,8 @@ class H(BaseHTTPRequestHandler):
                 v.pop("record", None); o.pop("record", None)
                 return self.send_json({"url": f"/runs/live/briefs/{fname}", "victim": victim, "verify": v, "original": o})
             self.send_response(404); self.end_headers()
+        except json.JSONDecodeError:
+            return self.send_json({"error": "request body is not valid JSON"}, 400)
         except Exception as e:
             self.send_json({"error": f"{type(e).__name__}: {str(e)[:300]}"}, 500)
 

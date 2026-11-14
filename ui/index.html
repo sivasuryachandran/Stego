@@ -821,8 +821,8 @@ function workspace() {
   const v2 = $("#v2file"); if (v2) v2.onchange = e => { const f = e.target.files[0]; if (f) upload(f, ct.id); e.target.value = ""; };
   const dn = $("#draftNote"); if (dn) dn.onclick = async () => {
     const out = $("#noteOut"), clause = state.sel; dn.disabled = true;
-    out.innerHTML = `<div class="lab" style="text-transform:none">Asking Intern… up to 20 s. You can keep working.</div>`;
-    const ac = new AbortController(), timer = setTimeout(() => ac.abort(), 25000);
+    out.innerHTML = `<div class="lab" style="text-transform:none">Asking Intern… this can take 10 to 20 s. You can keep working.</div>`;
+    const ac = new AbortController(), timer = setTimeout(() => ac.abort(), 70000);
     try { const r = await fetch("/api/draft-note", { method: "POST", body: JSON.stringify({ id: ct.id, clause }), signal: ac.signal }); const j = await r.json();
       if (state.sel !== clause) return;
       out.innerHTML = j.note ? `<div class="card" style="margin:0;background:#fff;padding:10px 14px"><span class="badge a">${esc(j.label)}</span><p style="margin:8px 0 0;font-weight:500">${esc(j.note)}</p><div class="lab" style="margin-top:6px;text-transform:none">${(j.ms / 1000).toFixed(1)} s · review before use. The Drex probability above is the only Drex output.</div></div>`
