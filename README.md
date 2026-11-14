@@ -150,6 +150,7 @@ These are app-path features. The benchmark, its chunker and the frozen threshold
 ## Limits
 - Weakest categories (F1): Warranty Duration 0.50, Uncapped Liability 0.60, Non-Transferable License 0.62, Post-Termination Services 0.64.
 - CUAD labels clause presence, not risk or acceptability. The "Urgent" list is a policy flag in `ui/index.html`, not ground truth.
+- **Tested in Chrome only** (real Chrome, 14 Nov 2026). Safari and Firefox were not tested.
 - **Text-based PDFs and .txt only.** Scanned PDFs are not supported. The benchmark scores yes/no presence on 20 categories of one dataset, in English plain text.
 - **The LLM baseline is an open 27B model, not a frontier model:** Qwen3.8-27B via DeepInfra, in thinking mode (arm A, and the LLM step of arm C). Its slowness is mostly reasoning tokens, so a frontier model, or Qwen with thinking off, would narrow the speed gap. No frontier arm was run.
 - **One source for the Drex-only time:** every Drex-only timing quoted here is the median in `runs/final/results.json` (arm B, `latency_p50_ms` = 6,945 ms, i.e. **6.9 s**). The Live Race and the recorded replay show single runs of one contract, not that median.

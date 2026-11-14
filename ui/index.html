@@ -385,7 +385,7 @@ pre.cmd{background:#111;color:#fff;padding:12px 14px;border-radius:8px;font:500 
     <span class="pill"><span class="dot"></span><span id="model">Drex</span></span>
     <button class="btn sm" id="demoBtn" title="Hide the sample/mock banners for a clean demo (needs live Drex and real results)">Demo mode: off</button>
   </div>
-  <select id="tplsel" title="Contract type: Auto detects it with Drex" style="margin-right:6px"><option value="commercial">Type: commercial (CUAD 20)</option><option value="auto">Auto-detect with Drex</option><option value="lease">Lease</option><option value="loan">Loan</option><option value="health_insurance">Health insurance</option></select>
+  <select id="tplsel" title="Contract type: Auto detects it with Drex" style="margin-right:6px;display:none"><option value="commercial">Type: commercial (CUAD 20)</option><option value="auto">Auto-detect with Drex</option><option value="lease">Lease</option><option value="loan">Loan</option><option value="health_insurance">Health insurance</option></select>
   <button class="btn green sm" id="upload">⬆ Upload contract</button>
 </header>
 <div class="strip"><span>DETERMINISTIC CLAUSE TRIAGE BAY // DREX DECIDES, PLAIN CODE AGGREGATES // MIND THE PLATES</span><span class="sticker" id="runtime">SAMPLE</span></div>
@@ -769,31 +769,33 @@ function workspace() {
       <div class="meter"><i style="width:${x.p * 100}%"></i></div><div class="m"><span>${k === "u" ? (x.p < D.theta ? "LIKELY ABSENT" : "UNCERTAIN") : k === "r" ? "URGENT (POLICY)" : "FOUND - CONFIRM"}</span><span>p=${x.p.toFixed(2)}</span></div></button>`; };
   const nums = ledgerNums();
   const segs = n => `<div class="seg">${Array.from({ length: 12 }, (_, i) => `<i style="${i < Math.round(n / cats.length * 12) ? "background:var(--ink)" : ""}"></i>`).join("")}</div>`;
+    const hitN = ct.cache ? (ct.cache.requests_cached || 0) + (ct.cache.requests_approx || 0) : 0;
+  const runLine = `${sec(ct.ms)} · ${ct.drex_decisions != null ? ct.drex_decisions.toLocaleString() : "–"} decisions · ${ct.live ? (ct.cache ? hitN + " cached" + (hitN ? " (warm cache)" : " (cold)") : "cache counts unavailable") : "measured run, 0 cached"}`;
   $("#view").innerHTML = `
-  <div class="card studs" style="margin-bottom:24px">${studs(4)}<div style="display:flex;justify-content:space-between;gap:20px;flex-wrap:wrap;align-items:center">
-    <div><div class="lab">${ct.pages ? ct.pages + " pages · " : ""}${cats.length} clause questions</div>
-      <select id="csel" style="margin-top:6px;max-width:100%">${D.contracts.map((c, i) => `<option value="${i}" ${i === state.ci ? "selected" : ""}>${esc(c.title)}${c.version > 1 ? " (v" + c.version + ")" : ""}</option>`).join("")}</select>
-      ${ct.live ? `<label class="btn sm" style="cursor:pointer;margin-left:8px" title="Upload a revised version: unchanged chunks are answered from the warm cache">Re-upload as v2<input id="v2file" type="file" accept=".pdf,.txt" hidden></label>` : ""}</div>
-    <div style="display:flex;gap:12px;flex-wrap:wrap">
-      <div class="card" style="margin:0;padding:8px 14px"><div class="lab">Drex decisions</div><div class="metric" style="font-size:24px">${ct.drex_decisions != null ? ct.drex_decisions.toLocaleString() : "–"}</div></div>
-      <div class="card" style="margin:0;padding:8px 14px"><div class="lab">Reasoning-LLM calls</div><div class="metric" style="font-size:24px">0</div></div>
-      ${ct.live && ct.template ? `<div class="card" style="margin:0;padding:8px 14px"><div class="lab">TEMPLATE</div><div class="metric" style="font-size:20px">${esc(ct.template_label)}</div><div class="lab" style="text-transform:none">${ct.benchmarked ? "benchmarked on CUAD" : "<b>NOT BENCHMARKED</b>: no gold labels"}${ct.template_detected ? "<br>detected: " + Object.entries(ct.template_detected).map(([k, v]) => k.replace("_", " ") + " " + v.toFixed(2)).join(" · ") : ""}</div></div>` : ""}
-      ${(() => { const c = ct.cache; if (!c) return ""; const ap = c.requests_approx || 0, hit = c.requests_cached + ap, n = hit + c.requests_sent; if (!hit && !c.label) return "";
-        return `<div class="card" style="margin:0;padding:8px 14px;background:var(--yellow)"><div class="lab">WARM CACHE${ct.version > 1 ? " · v" + ct.version : ""}</div><div class="metric" style="font-size:24px">${hit} of ${n} Drex requests reused</div><div class="lab" style="text-transform:none">${c.requests_cached} exact · ${ap} similar text${c.approx_min_sim ? " (at least " + Math.round(c.approx_min_sim * 100) + "% similar)" : ""} · ${c.requests_sent} sent to Drex${c.chunks_total ? "<br>" + c.chunks_reused + " of " + c.chunks_total + " chunks identical to the previous version" : ""}${c.parent_ms ? "<br>" + sec(ct.ms) + " vs " + sec(c.parent_ms) + " for the previous version (cold)" : ""}${ap ? "<br>Similar-text answers are reused, not re-asked, so they can differ from a fresh Drex answer." : ""}</div></div>`; })()}
-      <div class="card" style="margin:0;padding:8px 14px"><div class="lab">Time</div><div class="metric" style="font-size:24px">${sec(ct.ms)}</div>${ct.live ? `<div class="lab" style="text-transform:none">${esc(cacheCounts(ct))}</div>` : ""}</div>
-      ${ct.live && D.server ? `<div class="card" style="margin:0;padding:8px 14px"><div class="lab">Parse cost${ct.mock ? " (mock)" : ""}</div><div class="metric" style="font-size:24px">$${((D.liveLedger || []).filter(r => r.contract === ct.title && r.status !== "cached").reduce((a, r) => a + (r.input_tokens || 0), 0) / 1e6 * D.server.drex_price_per_m).toFixed(4)}</div></div>` : ""}</div></div></div>
+  <div class="card studs" style="margin-bottom:20px">${studs(4)}
+    <h2 style="margin:0 0 4px">Workspace</h2>
+    <div class="lab" style="text-transform:none;font-size:13px">Pick a clause on the board, read the evidence, then confirm, reject or escalate it.</div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-top:10px">
+      <select id="csel">${D.contracts.map((c, i) => `<option value="${i}" ${i === state.ci ? "selected" : ""}>${esc(c.title)}${c.version > 1 ? " (v" + c.version + ")" : ""}</option>`).join("")}</select>
+      <button class="btn green sm" id="wsUpload">⬆ Upload a contract</button></div>
+    <div class="runline" style="margin-top:10px;font:600 13px var(--mono)">${esc(runLine)}</div></div>
+  <div class="card studs ldg" id="board">${studs(4)}<div class="ldg-h"><h3>Clause board</h3><span class="lab">${cats.length} clauses · click one</span></div>
+      <div class="lab" style="margin:2px 0 8px;text-transform:none;font-size:12px"><b>${q.r.length + q.a.length + q.u.length} of ${cats.length}</b> clauses need a human look · ${cats.filter(c => ct.clauses[c].p >= D.theta).length} lean present${D.server && !D.server.thresholds_frozen ? ` · τ=${(+D.tau).toFixed(2)} is a default, not calibrated, so low-p clauses can land in Human review. Run calib on real data to set it.` : ""}</div>
+      <div class="lgrid">${(((state.lf || "all") === "all") ? [...q.r, ...q.a, ...q.u, ...q.g] : q[state.lf]).map(c => { const x = ct.clauses[c], k = queue(c, x.p);
+        return `<button class="lt ${k} ${c === state.sel ? "sel" : ""}" data-c="${esc(c)}"><span class="lt-n">${esc(c)}</span><span class="lt-p">${loc(x).replace("Page ", "p.").replace("Chunk ", "c.")}</span><span class="lt-m"><i style="width:${x.p * 100}%"></i></span><span class="lt-v">${x.p.toFixed(2)}</span></button>`; }).join("") || '<div class="lab">None in this queue</div>'}</div></div>
+  <div style="margin:14px 0 24px"><button class="btn dark" id="wsSeal">Seal brief</button></div>
   <div class="ws">
     <div><div class="card studs" style="padding:12px 16px">${studs(4)}<div style="display:flex;justify-content:space-between;align-items:center"><b class="head">${ev?.page ? "Page " + ev.page + " of " + ct.pages : loc(cl)} · ${esc(state.sel)}</b>
       <div style="display:flex;gap:8px"><button class="btn sm" data-nav="-1">←</button><button class="btn sm" data-nav="1">→</button></div></div></div>
       ${ct.pdf ? `<div id="pdfwrap" class="pdfwrap" data-pdf="${ct.pdf}" data-page="${ev?.page || 1}" data-q="${esc(cl.p >= D.theta && ev?.text ? ev.text : "")}"><div class="lab" style="padding:14px">Loading page…</div></div>
-        <div class="lab" style="margin-top:8px">Viewer: PDF.js · the evidence passage is highlighted by Stego · <a target="_blank" rel="noopener" href="${ct.pdf}#page=${ev?.page || 1}">Open the PDF at page ${ev?.page || 1} ↗</a></div>` : ""}
-      <div class="page" style="margin-top:20px"><div class="hd"><span>${esc(ct.title)}</span><span>${loc(cl)}</span></div>
+        <div class="lab" style="margin-top:8px"><a target="_blank" rel="noopener" href="${ct.pdf}#page=${ev?.page || 1}">Open the PDF at page ${ev?.page || 1} ↗</a></div>` : ""}
+      ${ct.pdf ? "" : `<div class="page" style="margin-top:20px"><div class="hd"><span>${esc(ct.title)}</span><span>${loc(cl)}</span></div>
         ${ev && ev.text && cl.p >= D.theta ? `<p class="faded">… preceding provisions of the Agreement …</p>
           <div class="hl"><span class="flag">${qk === "u" ? (cl.p < D.theta ? "LIKELY ABSENT" : "UNCERTAIN") : qk === "g" ? "NOT PRESENT" : "FLAGGED: " + esc(state.sel.toUpperCase())}</span>
           <div class="lab" style="color:#111">Extracted passage (Drex evidence)</div><div style="font:600 15px/1.6 var(--body)">${esc(ev.text)}</div></div>
           <p class="faded">… following provisions of the Agreement …</p>`
         : cl.p < D.theta ? `<div class="hl" style="background:var(--grey);box-shadow:none"><div class="lab" style="color:#111">Evidence</div><b>No supporting passage found</b> for this clause (p=${cl.p.toFixed(2)} is below θ=${D.theta}).</div>` : `<div class="hl"><div class="lab" style="color:#111">Evidence</div>Drex ranked <b>${ev ? "chunk " + ev.chunk : "no chunk"}</b> of the CUAD text for this clause. Page highlighting needs a page-mapped PDF; CUAD text has no pages.</div>`}
-      </div></div>
+      </div>`}</div>
     <div class="ws-r">
       <div class="card ${qk === "r" ? "r" : qk === "u" ? "u" : qk === "g" ? "g" : "a"} studs">${studs(4)}
         <span class="badge ${qk === "r" ? "r" : qk === "u" ? "" : qk === "g" ? "g" : "a"}">${{ r: "Urgent (policy flag)", a: "Found · confirm", u: cl.p < D.theta ? "Likely absent · human review" : "Human review", g: "Auto-cleared" }[qk]}</span>
@@ -801,9 +803,6 @@ function workspace() {
         <div class="card" style="background:#fff;margin:0 0 14px;padding:10px 14px"><div style="display:flex;justify-content:space-between"><span class="lab">Drex probability</span><b class="mono">p=${cl.p.toFixed(3)}</b></div>
           <div class="meter" style="height:12px"><i style="width:${cl.p * 100}%"></i></div>
           <div class="lab" style="margin-top:6px">confidence ${(conf(cl.p) * 100).toFixed(0)}% · τ=${(+D.tau).toFixed(2)} · θ=${D.theta}</div></div>
-        <p style="margin:0 0 14px;font-weight:500">${{ r: "Present with confidence. Urgency is a policy layer, not ground truth: CUAD labels presence, not risk.", a: "Present with confidence. A lawyer should read this passage.", u: `Stego doesn't force a decision when the evidence is weak. It leans ${cl.p >= D.theta ? "present" : "absent"} (p=${cl.p.toFixed(2)}). A person decides.`, g: "Confidently absent. Cleared without a human." }[qk]}</p>
-        <div class="lab" style="margin-bottom:6px">Suggested next action</div>
-        <div class="sugg">${{ r: "Send to counsel" + (ev?.page ? ", page " + ev.page : "") + ".", a: "Open the evidence page and confirm the clause is present.", u: `Read the page and decide: Drex is unsure (leans ${cl.p >= D.theta ? "present" : "absent"}, p=${cl.p.toFixed(2)}).`, g: "No action." }[qk]}</div>
         <div class="lab" style="margin:12px 0 6px">Your decision (written to the decision ledger)</div>
         <input id="rvname" class="rvname" placeholder="Your name" maxlength="60" value="${esc(reviewerName())}" ${ct.live ? "" : "disabled"}>
         <div style="display:flex;gap:10px;flex-wrap:wrap">
@@ -811,18 +810,34 @@ function workspace() {
           <button class="btn ${dec?.decision === "not_present" ? "dark" : ""}" data-d="not_present" ${ct.live ? "" : "disabled"}>Not present</button>
           <button class="btn ${dec?.decision === "escalated" ? "red" : ""}" data-d="escalated" ${ct.live ? "" : "disabled"}>Escalate</button></div>
         <div class="lab" style="margin-top:10px;text-transform:none;font-size:12px">${dec ? `Recorded: <b>${DEC_LABEL[dec.decision]}</b> by ${esc(dec.reviewer)} at ${esc(dec.at.replace("T", " ").replace("+00:00", " UTC"))}` : ct.live ? "Not decided yet. Stego routes; a person decides." : "Upload a contract to record decisions: sample contracts have no ledger."}</div>
-        <div style="margin-top:12px;border-top:2px dashed var(--ink);padding-top:10px"><button class="btn sm" id="draftNote" ${ct.live ? "" : "disabled"} title="Optional writing helper. Sends this clause's evidence text to an LLM.">Draft reviewer note (Intern)</button>
-          <span class="lab" style="text-transform:none;margin-left:8px">optional · LLM · not a Drex decision</span><div id="noteOut" style="margin-top:8px"></div></div></div>
-    <div class="card studs ldg">${studs(4)}<div class="ldg-h"><h3>Clause board ledger</h3><span class="lab">${cats.length} clauses · click to inspect</span></div>
-      <div class="lab" style="margin:2px 0 8px;text-transform:none;font-size:12px"><b>${q.r.length + q.a.length + q.u.length} of ${cats.length}</b> clauses need a human look · ${cats.filter(c => ct.clauses[c].p >= D.theta).length} lean present${D.server && !D.server.thresholds_frozen ? ` · τ=${(+D.tau).toFixed(2)} is a default, not calibrated, so low-p clauses can land in Human review. Run calib on real data to set it.` : ""}</div>
-      <div class="dist" title="Share of clauses per queue">${["r", "a", "u", "g"].map(k => q[k].length ? `<i class="${k}" style="flex:${q[k].length}"></i>` : "").join("")}</div>
+        </div></div></div>
+  
+  <details class="card" id="adv" style="margin-top:24px"><summary style="cursor:pointer;font:700 16px var(--head)">Advanced <span class="lab" style="text-transform:none">templates · re-upload as v2 · cache details · filters · reviewer note</span></summary>
+    <div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:14px;align-items:stretch">
+      ${ct.live && ct.template ? `<div class="card" style="margin:0;padding:8px 14px"><div class="lab">TEMPLATE</div><div class="metric" style="font-size:20px">${esc(ct.template_label)}</div><div class="lab" style="text-transform:none">${ct.benchmarked ? "benchmarked on CUAD" : "<b>NOT BENCHMARKED</b>: no gold labels"}${ct.template_detected ? "<br>detected: " + Object.entries(ct.template_detected).map(([k, v]) => k.replace("_", " ") + " " + v.toFixed(2)).join(" · ") : ""}</div></div>` : ""}
+      ${(() => { const c = ct.cache; if (!c) return ""; const ap = c.requests_approx || 0, hit = c.requests_cached + ap, n = hit + c.requests_sent; if (!hit && !c.label) return "";
+        return `<div class="card" style="margin:0;padding:8px 14px;background:var(--yellow)"><div class="lab">WARM CACHE${ct.version > 1 ? " · v" + ct.version : ""}</div><div class="metric" style="font-size:24px">${hit} of ${n} Drex requests reused</div><div class="lab" style="text-transform:none">${c.requests_cached} exact · ${ap} similar text${c.approx_min_sim ? " (at least " + Math.round(c.approx_min_sim * 100) + "% similar)" : ""} · ${c.requests_sent} sent to Drex${c.chunks_total ? "<br>" + c.chunks_reused + " of " + c.chunks_total + " chunks identical to the previous version" : ""}${c.parent_ms ? "<br>" + sec(ct.ms) + " vs " + sec(c.parent_ms) + " for the previous version (cold)" : ""}${ap ? "<br>Similar-text answers are reused, not re-asked, so they can differ from a fresh Drex answer." : ""}</div></div>`; })()}
+      <div class="card" style="margin:0;padding:8px 14px"><div class="lab">Cache detail</div><div style="font:500 13px var(--body)">${ct.live ? esc(cacheCounts(ct)) : "measured run: no cache"}</div></div>
+      <div class="card" style="margin:0;padding:8px 14px"><div class="lab">Reasoning-LLM calls</div><div class="metric" style="font-size:24px">${llmNoteCount(ct)}</div></div>
+      ${ct.live && D.server ? `<div class="card" style="margin:0;padding:8px 14px"><div class="lab">Parse cost${ct.mock ? " (mock)" : ""}</div><div class="metric" style="font-size:24px">$${((D.liveLedger || []).filter(r => r.contract === ct.title && r.status !== "cached").reduce((a, r) => a + (r.input_tokens || 0), 0) / 1e6 * D.server.drex_price_per_m).toFixed(4)}</div></div>` : ""}</div>
+    <div style="margin-top:14px"><div class="lab" style="margin-bottom:6px">Contract type for the next upload (templates are not benchmarked)</div><select id="tplsel2"></select></div>
+    <div style="margin-top:14px">${ct.live ? `<label class="btn sm" style="cursor:pointer" title="Upload a revised version: unchanged chunks are answered from the warm cache">Re-upload as v2<input id="v2file" type="file" accept=".pdf,.txt" hidden></label>` : ""}</div>
+    <div class="lab" style="margin:14px 0 6px">Board filters</div><div class="dist" title="Share of clauses per queue">${["r", "a", "u", "g"].map(k => q[k].length ? `<i class="${k}" style="flex:${q[k].length}"></i>` : "").join("")}</div>
       <div class="tabs">${[["all", "All", cats.length], ["r", "Urgent", q.r.length], ["a", "Found", q.a.length], ["u", "Human", q.u.length], ["g", "Cleared", q.g.length]].map(([k, t, n]) => `<button class="tab ${(state.lf || "all") === k ? "on" : ""}" data-lf="${k}">${t}<b>${n}</b></button>`).join("")}</div>
-      <div class="lgrid">${(((state.lf || "all") === "all") ? [...q.r, ...q.a, ...q.u, ...q.g] : q[state.lf]).map(c => { const x = ct.clauses[c], k = queue(c, x.p);
-        return `<button class="lt ${k} ${c === state.sel ? "sel" : ""}" data-c="${esc(c)}"><span class="lt-n">${esc(c)}</span><span class="lt-p">${loc(x).replace("Page ", "p.").replace("Chunk ", "c.")}</span><span class="lt-m"><i style="width:${x.p * 100}%"></i></span><span class="lt-v">${x.p.toFixed(2)}</span></button>`; }).join("") || '<div class="lab">None in this queue</div>'}</div>
-      <div class="lab" style="margin-top:8px">Red = urgent (policy flag) · amber = found, confirm it · dashed grey = below τ, goes to a human · green = auto-cleared</div></div>
-    </div></div>`;
+    <div style="margin-top:10px"><div class="lab" style="margin-top:8px">Red = urgent (policy flag) · amber = found, confirm it · dashed grey = below τ, goes to a human · green = auto-cleared</div></div>
+    <div style="margin-top:14px"><p style="margin:0 0 14px;font-weight:500">${{ r: "Present with confidence. Urgency is a policy layer, not ground truth: CUAD labels presence, not risk.", a: "Present with confidence. A lawyer should read this passage.", u: `Stego doesn't force a decision when the evidence is weak. It leans ${cl.p >= D.theta ? "present" : "absent"} (p=${cl.p.toFixed(2)}). A person decides.`, g: "Confidently absent. Cleared without a human." }[qk]}</p>
+        <div class="lab" style="margin-bottom:6px">Suggested next action</div>
+        <div class="sugg">${{ r: "Send to counsel" + (ev?.page ? ", page " + ev.page : "") + ".", a: "Open the evidence page and confirm the clause is present.", u: `Read the page and decide: Drex is unsure (leans ${cl.p >= D.theta ? "present" : "absent"}, p=${cl.p.toFixed(2)}).`, g: "No action." }[qk]}</div>
+        </div>
+    <div style="margin-top:12px;border-top:2px dashed var(--ink);padding-top:10px"><button class="btn sm" id="draftNote" ${ct.live ? "" : "disabled"} title="Optional writing helper. Sends this clause's evidence text to an LLM.">Draft reviewer note (Intern)</button>
+          <span class="lab" style="text-transform:none;margin-left:8px">optional · LLM · not a Drex decision</span><div id="noteOut" style="margin-top:8px"></div></div>
+  </details>
+`;
   renderPdf();
   $("#csel").onchange = e => { state.ci = +e.target.value; state.sel = null; workspace(); };
+  { const a = $("#tplsel"), b = $("#tplsel2"); if (a && b) { b.innerHTML = a.innerHTML; b.value = a.value; b.onchange = () => { a.value = b.value; }; } }
+  $("#wsUpload").onclick = () => $("#upload").click();
+  $("#wsSeal").onclick = () => { location.hash = "#/brief"; };
   const v2 = $("#v2file"); if (v2) v2.onchange = e => { const f = e.target.files[0]; if (f) upload(f, ct.id); e.target.value = ""; };
   const dn = $("#draftNote"); if (dn) dn.onclick = async () => {
     const out = $("#noteOut"), clause = state.sel; dn.disabled = true;
@@ -837,7 +852,7 @@ function workspace() {
   $("#view").onclick = e => {
     const c = e.target.closest("[data-c]"), d = e.target.closest("[data-d]"), n = e.target.closest("[data-nav]"), t = e.target.closest("[data-lf]");
     if (t) { state.lf = t.dataset.lf; workspace(); }
-    else if (c) { state.sel = c.dataset.c; workspace(); }
+    else if (c) { state.sel = c.dataset.c; workspace(); document.querySelector(".ws")?.scrollIntoView({ behavior: "smooth", block: "start" }); }
     else if (d) { recordDecision(ct, state.sel, d.dataset.d); }
     else if (n) { const i = flagged.indexOf(state.sel); state.sel = flagged[(i + +n.dataset.nav + flagged.length) % flagged.length] || state.sel; workspace(); }
   };
