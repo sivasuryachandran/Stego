@@ -10,6 +10,8 @@ reasoning-LLM calls after ingestion**. An LLM appears only as a benchmark baseli
 Hackathon: Drexathon, track **Apex Predator** (hand a frontier-LLM-style task's decisions to Drex and measure speed, cost and accuracy).
 Partner tools used: Nace Drex, DeepInfra (the LLM baseline), Adobe Content Credentials (C2PA) and Firefly (mascot).
 
+**Pitch deck (2 minutes, 6 slides, timed speaker notes):** [`docs/Stego_pitch_2min.pptx`](docs/Stego_pitch_2min.pptx)
+
 ## How it works
 1. **Ingest:** a text PDF or `.txt` is split into chunks (one per page in the app). Scanned PDFs are not supported.
 2. **Decide (Drex):** a section sweep asks all 20 questions per chunk. Chunks with 0.2 < p < 0.9 get a paragraph drill-down.
