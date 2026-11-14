@@ -234,6 +234,7 @@ def run_intern(prompt):
     except FileNotFoundError:
         return "unavailable", "Intern is not available here. It needs Linux or macOS, or the stego-intern Docker image (docker build -t stego-intern tools/intern)."
     out, err = (r.stdout or "").strip(), (r.stderr or "").strip()
+    out = "\n".join(l for l in out.splitlines() if not re.match(r"^\[\d+ turns?, .*tokens\]$", l.strip())).strip()   # drop Intern's usage footer
     for secret in (env["NACE_API_KEY"], env["DEEPINFRA_API_KEY"]):
         if secret:
             out, err = out.replace(secret, "***"), err.replace(secret, "***")
