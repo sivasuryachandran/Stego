@@ -546,14 +546,14 @@ function dinoOverlay(fileName, onCancel) {
     close() { clearInterval(t); ov.remove(); },
   };
 }
-function upload(file) {
+function upload(file, parent) {
   const job = Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4);
   const xhr = new XMLHttpRequest(); let poll = null, finished = false;
   const ui = dinoOverlay(file.name, () => cancel());
   const finish = () => { finished = true; clearInterval(poll); ui.close(); };
   const cancel = () => { if (finished) return; xhr.abort(); fetch("/api/cancel/" + job, { method: "POST" }).catch(() => {}); finish(); toast("Dig cancelled."); };
   xhr.open("POST", "/api/analyze");
-  xhr.setRequestHeader("X-Filename", encodeURIComponent(file.name)); xhr.setRequestHeader("X-Job", job);
+  xhr.setRequestHeader("X-Filename", encodeURIComponent(file.name)); xhr.setRequestHeader("X-Job", job); if (parent) xhr.setRequestHeader("X-Parent", parent);
   xhr.upload.onprogress = e => { if (e.lengthComputable) ui.set(e.loaded / e.total * 10, `Uploading ${(e.loaded / 1e6).toFixed(1)} of ${(e.total / 1e6).toFixed(1)} MB`); };
   xhr.upload.onload = () => { ui.set(10, "Upload done. Drex takes over…");
     poll = setInterval(async () => { try { const p = await (await fetch("/api/progress/" + job)).json(); if (p && p.pct != null) ui.set(p.pct, p.detail); } catch (e) { /* keep polling */ } }, 350); };
@@ -561,7 +561,7 @@ function upload(file) {
     if (finished) return; let j = {}; try { j = JSON.parse(xhr.responseText); } catch (e) { j = { error: "unreadable response" }; }
     if (xhr.status !== 200) { finish(); toast("The dig failed: " + (j.error || xhr.status)); return; }
     ui.set(100, "Fossil unearthed"); await new Promise(r => setTimeout(r, 350));
-    D = await load(); state.ci = 0; state.sel = null;
+    D = await load(); state.ci = Math.max(0, D.contracts.findIndex(c => c.id === j.id)); state.sel = null;
     await ui.done({ pages: j.pages, decisions: j.drex_decisions, ms: j.ms });
     finish(); go("workspace");
   };
@@ -764,12 +764,14 @@ function workspace() {
   $("#view").innerHTML = `
   <div class="card studs" style="margin-bottom:24px">${studs(4)}<div style="display:flex;justify-content:space-between;gap:20px;flex-wrap:wrap;align-items:center">
     <div><div class="lab">${ct.pages ? ct.pages + " pages · " : ""}${D.categories.length} clause questions</div>
-      <select id="csel" style="margin-top:6px;max-width:100%">${D.contracts.map((c, i) => `<option value="${i}" ${i === state.ci ? "selected" : ""}>${esc(c.title)}</option>`).join("")}</select></div>
+      <select id="csel" style="margin-top:6px;max-width:100%">${D.contracts.map((c, i) => `<option value="${i}" ${i === state.ci ? "selected" : ""}>${esc(c.title)}${c.version > 1 ? " (v" + c.version + ")" : ""}</option>`).join("")}</select>
+      ${ct.live ? `<label class="btn sm" style="cursor:pointer;margin-left:8px" title="Upload a revised version: unchanged chunks are answered from the warm cache">Re-upload as v2<input id="v2file" type="file" accept=".pdf,.txt" hidden></label>` : ""}</div>
     <div style="display:flex;gap:12px;flex-wrap:wrap">
       <div class="card" style="margin:0;padding:8px 14px"><div class="lab">Drex decisions</div><div class="metric" style="font-size:24px">${ct.drex_decisions != null ? ct.drex_decisions.toLocaleString() : "–"}</div></div>
       <div class="card" style="margin:0;padding:8px 14px"><div class="lab">Reasoning-LLM calls</div><div class="metric" style="font-size:24px">0</div></div>
+      ${ct.cache && ct.cache.label ? `<div class="card" style="margin:0;padding:8px 14px;background:var(--yellow)"><div class="lab">WARM CACHE · v${ct.version}</div><div class="metric" style="font-size:24px">${ct.cache.chunks_reused} of ${ct.cache.chunks_total} chunks reused</div><div class="lab" style="text-transform:none">${ct.cache.chunks_reasked} re-asked · ${sec(ct.ms)} vs ${sec(ct.cache.parent_ms)} for v1 (cold)<br>${ct.cache.requests_cached} of ${ct.cache.requests_cached + ct.cache.requests_sent} Drex requests answered from cache</div></div>` : ""}
       <div class="card" style="margin:0;padding:8px 14px"><div class="lab">Time</div><div class="metric" style="font-size:24px">${sec(ct.ms)}</div></div>
-      ${ct.live && D.server ? `<div class="card" style="margin:0;padding:8px 14px"><div class="lab">Parse cost${ct.mock ? " (mock)" : ""}</div><div class="metric" style="font-size:24px">$${((D.liveLedger || []).filter(r => r.contract === ct.title).reduce((a, r) => a + (r.input_tokens || 0), 0) / 1e6 * D.server.drex_price_per_m).toFixed(4)}</div></div>` : ""}</div></div></div>
+      ${ct.live && D.server ? `<div class="card" style="margin:0;padding:8px 14px"><div class="lab">Parse cost${ct.mock ? " (mock)" : ""}</div><div class="metric" style="font-size:24px">$${((D.liveLedger || []).filter(r => r.contract === ct.title && r.status !== "cached").reduce((a, r) => a + (r.input_tokens || 0), 0) / 1e6 * D.server.drex_price_per_m).toFixed(4)}</div></div>` : ""}</div></div></div>
   <div class="ws">
     <div><div class="card studs" style="padding:12px 16px">${studs(4)}<div style="display:flex;justify-content:space-between;align-items:center"><b class="head">${ev?.page ? "Page " + ev.page + " of " + ct.pages : loc(cl)} · ${esc(state.sel)}</b>
       <div style="display:flex;gap:8px"><button class="btn sm" data-nav="-1">←</button><button class="btn sm" data-nav="1">→</button></div></div></div>
@@ -809,6 +811,7 @@ function workspace() {
     </div></div>`;
   renderPdf();
   $("#csel").onchange = e => { state.ci = +e.target.value; state.sel = null; workspace(); };
+  const v2 = $("#v2file"); if (v2) v2.onchange = e => { const f = e.target.files[0]; if (f) upload(f, ct.id); e.target.value = ""; };
   $("#view").onclick = e => {
     const c = e.target.closest("[data-c]"), d = e.target.closest("[data-d]"), n = e.target.closest("[data-nav]"), t = e.target.closest("[data-lf]");
     if (t) { state.lf = t.dataset.lf; workspace(); }
