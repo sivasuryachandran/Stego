@@ -796,7 +796,7 @@ function workspace() {
     <h2 style="margin:0 0 4px">Workspace</h2>
     <div class="lab" style="text-transform:none;font-size:13px">Read the evidence, then confirm, reject or escalate. Open a group in the clause board to pick another clause.</div>
     <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-top:10px">
-      <select id="csel">${D.contracts.map((c, i) => `<option value="${i}" ${i === state.ci ? "selected" : ""}>${esc(c.title)}${c.version > 1 ? " (v" + c.version + ")" : ""}</option>`).join("")}</select>
+      <b class="head" style="font-size:18px">${esc(ct.title)}${ct.version > 1 ? " (v" + ct.version + ")" : ""}</b>
       <label class="lab" style="text-transform:none;font-size:13px;display:flex;align-items:center;gap:6px">Contract type <select id="tplsel2" title="Applies to the next upload. Templates other than Commercial are not benchmarked."></select></label>
       <button class="btn green sm" id="wsUpload">⬆ Upload a contract</button></div>
     <div class="runline" style="margin-top:10px;font:600 13px var(--mono)">${esc(runLine)}</div></div>
@@ -857,7 +857,7 @@ function workspace() {
   </details>
 `;
   renderPdf();
-  $("#csel").onchange = e => { state.ci = +e.target.value; state.sel = null; workspace(); };
+  { const cs = $("#csel"); if (cs) cs.onchange = e => { state.ci = +e.target.value; state.sel = null; workspace(); }; }
   { const a = $("#tplsel"), b = $("#tplsel2"); if (a && b) { b.innerHTML = a.innerHTML; b.value = a.value; b.onchange = () => { a.value = b.value; }; } }
   $("#board").addEventListener("toggle", e => { const g = e.target.dataset && e.target.dataset.g; if (g) { state.og = state.og || {}; state.og[g] = e.target.open; } }, true);
   $("#wsUpload").onclick = () => $("#upload").click();
