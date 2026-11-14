@@ -27,7 +27,7 @@ LIVE = os.path.join(ROOT, "runs", "live")
 BRIEFS = os.path.join(LIVE, "briefs")
 URGENT = {"Uncapped Liability", "Change Of Control", "Liquidated Damages", "Non-Compete"}
 VERIFY_URL = "https://contentcredentials.org/verify"
-RENDER_VERSION = 2   # bump when render_brief changes, so older seals are not falsely flagged as edited
+RENDER_VERSION = 3  # bump when render_brief changes, so older seals are not falsely flagged as edited
 MASCOT = os.path.join(ROOT, "assets", "mascot_firefly.png")  # a Firefly image; its own Content Credentials join the chain
 
 
@@ -195,6 +195,21 @@ def render_brief(rec):
     d.text((80, y + 8), f"Cleared as absent ({len(rec['cleared'])}): " + ", ".join(rec["cleared"])[:300], font=f_s, fill=INK)
     y += 64
     d.rectangle([80, y, W - 80, y + 150], fill=(255, 255, 255), outline=INK, width=3)
+    if os.path.exists(MASCOT):
+        m = Image.open(MASCOT).convert("RGBA")
+        m = m.crop((0, 0, m.width, int(m.height * 0.9)))   # the generated image carries a stray colour label at the bottom
+        bg = m.getpixel((2, 2))
+        keep = Image.new("L", m.size, 255)
+        px, kp = m.load(), keep.load()
+        for yy in range(m.height):
+            for xx in range(m.width):
+                p = px[xx, yy]
+                if max(abs(p[i] - bg[i]) for i in range(3)) < 14:
+                    kp[xx, yy] = 0
+        m.putalpha(keep)
+        m = m.crop(m.getbbox()) if m.getbbox() else m
+        m.thumbnail((130, 84))
+        im.paste(m, (W - 80 - 20 - m.width, y + 10), m)
     d.text((100, y + 14), "SEALED WITH CONTENT CREDENTIALS (C2PA) · THE FOSSIL RECORD", font=f_m, fill=INK)
     d.text((100, y + 44), f"ledger sha256  {rec['ledger']['file_sha256'][:48]}…", font=f_m, fill=INK)
     d.text((100, y + 70), f"contract rows  {rec['ledger']['contract_rows']}  ·  reasoning-LLM calls  {rec['reasoning_llm_calls']}", font=f_m, fill=INK)
