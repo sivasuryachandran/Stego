@@ -4,6 +4,7 @@
 Without DREX_API_KEY it runs the harness's MOCK Drex (keyword heuristics) and the UI says so loudly.
 """
 import asyncio
+import subprocess
 import json
 import mimetypes
 import os
@@ -194,6 +195,51 @@ def locate(page_text, category, limit=420):
                 seg += " " + sents[i + 1]
             return clip(seg, limit)
     return clip(flat, limit)
+
+
+# ---------------------------------------------------------------- optional writing helper: Intern (nace-ai/intern), headless
+INTERN_TIMEOUT = 20
+INTERN_LABEL = "Drafted by Intern (LLM), not a Drex decision"
+
+
+def intern_prompt(clause, p, page, evidence, template_label):
+    return (f"You are helping a human contract reviewer. In 2 to 3 plain sentences (no markdown, no bullet points), write a short "
+            f"reviewer note about the \"{clause}\" clause of a {template_label} document. Facts: the Drex model gave probability "
+            f"p={p:.2f} that the clause is present; the evidence is on page {page}: \"{evidence[:900]}\". "
+            f"Say what to check. Do not approve or reject the contract, do not run any tools, and do not invent facts beyond this text.")
+
+
+def intern_command(prompt):
+    """Intern needs Linux or macOS (fcntl, process groups). On Windows it runs in the stego-intern Docker image
+    (docker build -t stego-intern tools/intern). INTERN_CMD (a JSON list with {prompt}) overrides everything."""
+    custom = os.getenv("INTERN_CMD")
+    if custom:
+        return [a.replace("{prompt}", prompt) for a in json.loads(custom)]
+    base = ["intern", "-p", "--no-session", "--no-context-files", "--max-turns", "2",
+            "--system2", os.getenv("INTERN_SYSTEM2", "deepinfra/Qwen/Qwen3.8-27B"), "--", prompt]
+    if os.name == "nt":
+        return ["docker", "run", "--rm", "-e", "NACE_API_KEY", "-e", "DEEPINFRA_API_KEY", "stego-intern"] + base
+    return base
+
+
+def run_intern(prompt):
+    """Returns (status, text). status: ok | timeout | unavailable | error. Never raises, never blocks longer than INTERN_TIMEOUT."""
+    env = dict(os.environ)
+    env["NACE_API_KEY"] = config.DREX_API_KEY
+    env["DEEPINFRA_API_KEY"] = os.getenv("DEEPINFRA_API_KEY") or (config.LLM_API_KEY if "deepinfra" in config.LLM_BASE_URL else "")
+    try:
+        r = subprocess.run(intern_command(prompt), capture_output=True, text=True, timeout=INTERN_TIMEOUT, env=env, cwd=ROOT)
+    except subprocess.TimeoutExpired:
+        return "timeout", f"Intern took longer than {INTERN_TIMEOUT} s, so the draft was skipped. Nothing else is affected."
+    except FileNotFoundError:
+        return "unavailable", "Intern is not available here. It needs Linux or macOS, or the stego-intern Docker image (docker build -t stego-intern tools/intern)."
+    out, err = (r.stdout or "").strip(), (r.stderr or "").strip()
+    for secret in (env["NACE_API_KEY"], env["DEEPINFRA_API_KEY"]):
+        if secret:
+            out, err = out.replace(secret, "***"), err.replace(secret, "***")
+    if r.returncode != 0 or not out:
+        return "error", ("Intern failed: " + (err[-300:] or out[-300:] or f"exit code {r.returncode}"))
+    return "ok", out
 
 
 DECISIONS = os.path.join(LIVE, "decisions.jsonl")   # append-only ledger of human decisions
@@ -572,12 +618,43 @@ class H(BaseHTTPRequestHandler):
         except Exception as e:
             self.send_json({"error": f"{type(e).__name__}: {str(e)[:300]}"}, 500)
 
+    def draft_note_api(self):
+        n = int(self.headers.get("Content-Length", 0))
+        if n <= 0 or n > 10_000:
+            return self.send_json({"error": "bad request"}, 400)
+        try:
+            req = json.loads(self.rfile.read(n))
+            cid = re.sub(r"[^0-9a-f]", "", str(req.get("id", "")))
+            cpath = os.path.join(LIVE, "contracts", cid + ".json")
+            if not cid or not os.path.exists(cpath):
+                return self.send_json({"error": "notes are drafted for uploaded contracts only"}, 404)
+            c = json.load(open(cpath))
+            clause = req.get("clause")
+            if clause not in (c.get("categories") or config.CATEGORIES):
+                return self.send_json({"error": "unknown clause"}, 422)
+            cl = c["clauses"][clause]
+            ev = cl["evidence"][0] if cl["evidence"] else {}
+            prompt = intern_prompt(clause, cl["p"], ev.get("page") or "unknown", ev.get("text") or "(no supporting passage found)",
+                                   c.get("template_label") or "contract")
+            t0 = time.perf_counter()
+            status, text = run_intern(prompt)
+            ms = round((time.perf_counter() - t0) * 1000)
+            LEDGER.log(kind="intern", contract=c["title"], clause=clause, status=status, latency_ms=ms,
+                       model=os.getenv("INTERN_SYSTEM2", "deepinfra/Qwen/Qwen3.8-27B"))
+            if status != "ok":
+                return self.send_json({"error": text, "status": status, "ms": ms}, 200)
+            return self.send_json({"note": text, "label": INTERN_LABEL, "ms": ms, "status": "ok"})
+        except Exception as e:
+            return self.send_json({"error": f"{type(e).__name__}: {str(e)[:200]}", "status": "error"}, 200)
+
     def do_POST(self):
         route = urlparse(self.path).path
         if route in ("/api/seal", "/api/verify", "/api/tamper", "/api/forge"):
             return self.fossil_api(route)
         if route == "/api/decision":
             return self.decision_api()
+        if route == "/api/draft-note":
+            return self.draft_note_api()
         if route.startswith("/api/cancel/"):
             j = JOBS.get(os.path.basename(route))
             if j and j.get("task") and not j["task"].done():
