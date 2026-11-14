@@ -7,5 +7,7 @@ Stego*Product Doc*.pdf
 __pycache__/
 data/
 keys/
+runs/armA/
+runs/armC/
 runs/cache.sqlite
 runs/live/

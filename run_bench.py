@@ -60,6 +60,7 @@ async def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("mode", choices=["gate", "calib", "bench", "baseline", "merge"])
     ap.add_argument("--src", default="runs/armA", help="merge: the run directory to merge from")
+    ap.add_argument("--letters", default="", help="merge: only take these arm letters from --src, e.g. C")
     ap.add_argument("--arms", default="llm,drex,cascade")
     ap.add_argument("--limit", type=int, default=0)
     ap.add_argument("--no-cache", action="store_true")
@@ -80,13 +81,16 @@ async def main():
         print_table(res["summary"]); return
     if a.mode == "merge":           # fold another run (e.g. arm A run separately) into --out, replacing rows with the same arm letter
         src = json.load(open(os.path.join(a.src, "results.json"))); dst = json.load(open(os.path.join(a.out, "results.json")))
-        letters = {x["arm"][0] for x in src["summary"]}
+        letters = set(a.letters.upper()) if a.letters else {x["arm"][0] for x in src["summary"]}
+        src["summary"] = [x for x in src["summary"] if x["arm"][0] in letters]
         dst["summary"] = [x for x in dst["summary"] if x["arm"][0] not in letters] + src["summary"]
         dst["llm_model"] = src.get("llm_model") or dst.get("llm_model")
         json.dump(dst, open(os.path.join(a.out, "results.json"), "w"), indent=2)
-        for name in ("predictions.jsonl", "ledger.jsonl"):
-            with open(os.path.join(a.out, name), "a") as f:
-                f.write(open(os.path.join(a.src, name)).read())
+        arm_names = {"A": "llm", "B": "drex", "C": "cascade"}; keep = {arm_names[l] for l in letters if l in arm_names}
+        with open(os.path.join(a.out, "predictions.jsonl"), "a") as f:      # only the merged arms' predictions (no duplicate Drex rows)
+            f.write("".join(ln for ln in open(os.path.join(a.src, "predictions.jsonl")) if json.loads(ln).get("arm") in keep))
+        with open(os.path.join(a.out, "ledger.jsonl"), "a") as f:           # every call is a receipt
+            f.write(open(os.path.join(a.src, "ledger.jsonl")).read())
         print_table(dst["summary"]); return
     ledger = Ledger(os.path.join(a.out, "ledger.jsonl"))
     cache = Cache("runs/cache.sqlite", enabled=not a.no_cache)

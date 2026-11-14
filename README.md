@@ -96,3 +96,23 @@ In the Workspace, a reviewer enters a name and picks **Confirm present**, **Not 
 `runs/live/decisions.jsonl` (reviewer, time, Drex probability, evidence page, Drex model). Sealing a brief reads that ledger, so the Content Credentials
 seal records both Drex's call and the human's. Stego never recommends approve or reject: CUAD labels presence, not acceptability. Queues: Urgent (policy flag),
 Found · confirm, Human review (below τ), Auto-cleared. The default τ is not calibrated; run `calib` on real data before quoting a human-workload number.
+
+## Measured results so far (CUAD test split)
+20 calibration contracts set the thresholds, 82 disjoint report contracts are scored (split seed 14). Thresholds θ=0.48, τ=0.918 are recorded with `frozen_at` in
+`runs/thresholds.json`. The git repository was created after the run, so the commit history does not prove the order; the timestamps in `runs/latest/ledger.jsonl`
+(calibration) and `runs/final/ledger.jsonl` (report set) do: the first report call follows `frozen_at`.
+
+| Drex-only arm (B), 82 contracts | |
+|---|---|
+| Macro-F1 / micro-F1 | 0.796 / 0.834 |
+| Accuracy | 90.5% (a per-category majority-class baseline gets 73.5% accuracy but macro-F1 0.043) |
+| Evidence on the right chunk | 94.4% (top 1), 99.5% (top 3) |
+| Calibration | Brier 0.072, ECE 0.031 |
+| Accuracy at confidence ≥ 0.93 | 96.3% over 1,139 of 1,640 decisions (69.5%); Nace's published claim is 97% |
+| Speed / cost | 6.9 s median per contract, about $0.002 per contract, 0 LLM calls |
+
+Weakest categories (F1): Warranty Duration 0.50, Uncapped Liability 0.60, Non-Transferable License 0.62, Post-Termination Services 0.64.
+Arms A (an open 27B LLM, Qwen3.8-27B via DeepInfra: not a frontier model) and C (Drex-first cascade) are merged into `runs/final` when they finish; until then the
+Benchmark page shows only B and the majority-class baseline. The LLM arm is slow mainly because it runs in thinking mode.
+
+Data: the CUAD test split (CC BY 4.0, The Atticus Project, https://www.atticusprojectai.org/cuad). Download `data.zip` and put `test.json` in `data/cuad/` (not committed).
