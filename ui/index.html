@@ -272,6 +272,9 @@ iframe.pdf{width:100%;height:560px;border:2px solid var(--ink);background:#fff;b
 .fr-kv{display:grid;grid-template-columns:150px 1fr;gap:6px 12px;font:500 13px var(--mono);margin:10px 0}
 .fr-kv b{color:var(--mut);font-weight:700;text-transform:uppercase;font-size:10px;letter-spacing:.05em;padding-top:2px}
 .fr-tbl td,.fr-tbl th{font-size:12px;padding:6px 8px}
+.vm-back{position:fixed;inset:0;background:rgba(17,17,17,.55);z-index:50;display:flex;align-items:center;justify-content:center;padding:16px}
+.vm{background:var(--canvas);border:3px solid var(--ink);box-shadow:8px 8px 0 var(--ink);border-radius:10px;max-width:520px;width:100%;padding:22px 24px}
+.vm h3{margin:10px 0 6px;font:700 22px/1.2 var(--head)}.vm p{margin:0 0 12px;font:500 15px/1.5 var(--body)}
 .fr-res{margin-top:12px;border:2px dashed var(--ink);border-radius:8px;padding:12px;background:var(--canvas)}
 @media(max-width:1100px){.fr-grid{grid-template-columns:1fr}}
 
@@ -944,6 +947,22 @@ async function postJSON(u, body) { const r = await fetch(u, { method: "POST", bo
   const j = await r.json(); if (!r.ok) throw new Error(j.error || r.status); return j; }
 const vBadge = v => { const m = { authentic: ["g", "AUTHENTIC"], "edited-after-seal": ["r", "EDITED AFTER SEAL"], tampered: ["r", "TAMPERED · " + (v.problems || []).join(", ")],
   "not-stego": ["a", "VALID C2PA · NOT A STEGO SEAL"], "no-seal": ["", "NO CREDENTIALS"] }[v.verdict] || [v.valid ? "g" : "r", v.valid ? "VALID" : "INVALID"]; return `<span class="badge ${m[0]}">${esc(m[1])}</span>`; };
+const VM_TEXT = {
+  authentic: ["Authentic", "This file matches what Stego sealed. The credentials are intact and the content is unchanged."],
+  "edited-after-seal": ["Edited after sealing", "The file carries credentials, but they show it was changed after Stego signed it. The seal shows that it changed, not who changed it."],
+  tampered: ["Tampered", "The signature no longer matches the content. The file was altered after it was sealed."],
+  "no-seal": ["No Content Credentials", "This file has no seal. It cannot be verified as the original: it may have been edited or re-exported by a tool that drops credentials."],
+  "not-stego": ["Valid credentials, not a Stego seal", "This file has Content Credentials, but they were not made by Stego."] };
+function verifyModal(name, v, err) {
+  const [title, body] = err ? ["Could not verify", err] : VM_TEXT[v.verdict] || ["Result", v.valid ? "Valid." : "Invalid."];
+  const back = document.createElement("div"); back.className = "vm-back";
+  back.innerHTML = `<div class="vm" role="dialog" aria-modal="true"><b>${esc(name)}</b><div style="margin-top:6px">${err ? "" : vBadge(v) + (v.untrusted_signer ? ' <span class="badge a">untrusted signer (test certificate)</span>' : "")}</div>
+    <h3>${esc(title)}</h3><p>${esc(body)}</p>${err ? "" : issuesHTML(v)}${!err && v.signer ? `<div class="lab" style="text-transform:none;margin-bottom:12px">Signer: ${esc(v.signer)}</div>` : ""}
+    <button class="btn dark" id="vmClose">Close</button></div>`;
+  const close = () => { back.remove(); document.removeEventListener("keydown", onKey); };
+  const onKey = e => { if (e.key === "Escape") close(); };
+  back.onclick = e => { if (e.target === back) close(); };
+  document.addEventListener("keydown", onKey); document.body.append(back); back.querySelector("#vmClose").onclick = close; }
 const issuesHTML = v => (v.issues || []).map(i => `<div class="banner sample" style="margin:8px 0 0">${esc(i)}</div>`).join("");
 function fossilPanel(ct) {
   const el = $("#fossil"); if (!el) return;
@@ -981,8 +1000,8 @@ function fossilPanel(ct) {
         <div class="grid g2" style="gap:12px">${side("Original", S.url, r.original)}${side("Forgery", r.url, r.verify, r.verify.editor ? `<div class="lab" style="margin-top:6px">editor: ${esc(r.verify.editor)}</div>` : "")}</div></div>`; }
     catch (err) { toast(err.message); } fg.disabled = false; };
   $("#vfile").onchange = async e => { const f = e.target.files[0]; if (!f) return;
-    try { const v = await postJSON("/api/verify", f); $("#vres").innerHTML = `<div class="fr-res"><b>${esc(f.name)}</b> ${vBadge(v)} ${v.untrusted_signer ? '<span class="badge a">untrusted signer</span>' : ""}${issuesHTML(v)}<div class="fr-kv"><b>Signer</b><span>${esc(v.signer || "–")}</span>${v.record ? `<b>Contract</b><span>${esc(v.record.contract)}</span><b>Flagged</b><span>${v.record.flagged.length}</span>` : ""}</div></div>`; }
-    catch (err) { toast(err.message); } };
+    try { const v = await postJSON("/api/verify", f); verifyModal(f.name, v); e.target.value = ""; $("#vres").innerHTML = `<div class="fr-res"><b>${esc(f.name)}</b> ${vBadge(v)} ${v.untrusted_signer ? '<span class="badge a">untrusted signer</span>' : ""}${issuesHTML(v)}<div class="fr-kv"><b>Signer</b><span>${esc(v.signer || "–")}</span>${v.record ? `<b>Contract</b><span>${esc(v.record.contract)}</span><b>Flagged</b><span>${v.record.flagged.length}</span>` : ""}</div></div>`; }
+    catch (err) { verifyModal(f.name, null, err.message); } };
 }
 
 
