@@ -12,5 +12,4 @@ runs/armC/
 runs/cache.sqlite
 runs/live/
 /*.png
-Stago*.pptx
 .claude/
