@@ -48,6 +48,7 @@ class LLMClient:
         self.base_url = p.get("base_url", config.LLM_BASE_URL)
         self.api_key = p.get("api_key", config.LLM_API_KEY)
         self.temperature = p.get("temperature", config.LLM_TEMPERATURE)
+        self.extra_body = p.get("extra_body") or {}   # provider-specific request fields, e.g. {"chat_template_kwargs": {"enable_thinking": False}} to switch Qwen thinking off
         self.fail_fast_429 = p.get("fail_fast_429", False)   # Live Race: a rate-limit/quota answer ends the call at once instead of retrying for about a minute
         self.http = httpx.AsyncClient(timeout=300)
         self.calls = 0
@@ -111,6 +112,7 @@ class LLMClient:
                                          {"role": "user", "content": prompt}]}
                     if self.temperature != "":
                         body["temperature"] = float(self.temperature)
+                    body.update(self.extra_body)
                     r = await self.http.post(
                         f"{self.base_url}/chat/completions", json=body,
                         headers={"Authorization": f"Bearer {self.api_key}"})
